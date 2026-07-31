@@ -1087,26 +1087,33 @@ public enum AutoDrive {
         // 伪造报错原文(与用户实测的一字不差),直接喂进终端画面
         tv.getTerminal().feed(text: "Unable to negotiate with 127.0.0.1 port 65533: "
             + "no matching host key type found. Their offer: ssh-rsa,ssh-dss\r\n")
+        // 断言盯「发出去的命令」而不是「屏幕上的回显」——
+        // 伪造报错是直接 feed 进模拟器的,shell 不知情,它重画输入行时会和注入的
+        // 文字互相覆盖,回显落点不确定(实测:命令前半截被盖掉,只剩后半截可见)。
+        // 屏幕回显是 shell 的行为;YeTerm 的契约是「把带对参数的命令发出去」。
         var dgOK = false
         for _ in 0..<24 {
             pump(0.25)
-            var all = ""
-            let t = tv.getTerminal()
-            for row in 0..<t.rows {
-                guard let line = t.getLine(row: row) else { continue }
-                for c in 0..<t.cols {
-                    let ch = line[c].getCharacter()
-                    if ch != "\u{0}" { all.append(ch) }
-                }
-            }
-            if all.contains("HostKeyAlgorithms=+ssh-rsa") { dgOK = true; break }
+            if SSHAutoLogin.lastSentCommand.contains("HostKeyAlgorithms=+ssh-rsa") { dgOK = true; break }
         }
+        let sent = SSHAutoLogin.lastSentCommand
         let dgAction = SSHAutoLogin.lastAction.hasPrefix("downgrade:")
         let remembered = sshStore.hosts.first { $0.id == dgHost.id }?.extraOptions ?? ""
-        if dgOK, dgAction, remembered.contains("HostKeyAlgorithms=+ssh-rsa"), !remembered.contains("dss") {
+        // 命令必须:①带主机密钥算法兼容参数;②带公钥算法兼容参数;
+        //          ③**滤掉 dss**(本机 ssh 已不支持,带上去会以另一个错失败);
+        //          ④打到正确的主机端口上
+        let cmdOK = sent.contains("-o HostKeyAlgorithms=+ssh-rsa")
+                 && sent.contains("-o PubkeyAcceptedAlgorithms=+ssh-rsa")
+                 && !sent.contains("dss")
+                 && sent.contains("dg@127.0.0.1")
+                 && sent.contains("-p 65533")
+        if dgOK, dgAction, cmdOK,
+           remembered.contains("HostKeyAlgorithms=+ssh-rsa"), !remembered.contains("dss") {
             print("✓ 算法自动降级:抓 offer 补参数重连 + 记住这台主机(滤掉 dss)")
         } else {
-            print("✗ 自动降级异常 屏幕=\(dgOK) action=\(SSHAutoLogin.lastAction) 记住=「\(remembered)」")
+            print("✗ 自动降级异常 触发=\(dgOK) action=\(SSHAutoLogin.lastAction) 命令合规=\(cmdOK)")
+            print("    实发命令:「\(sent)」")
+            print("    记住参数:「\(remembered)」")
             sshOK = false
         }
         snap("ssh_downgrade")

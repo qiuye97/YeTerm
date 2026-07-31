@@ -38,6 +38,16 @@ final class SSHAutoLogin {
     /// 测试观察口(auto-drive 断言自动填/自动降级确实发生)
     private(set) static var lastAction = ""
 
+    /// 测试观察口:最近一次**注入 PTY 的重连命令原文**。
+    ///
+    /// 为什么要单独记这个,而不是让测试去扫屏幕:降级场景里伪造的报错是直接
+    /// `feed()` 进终端模拟器的(绕过 PTY),shell 并不知道屏幕上多了几行 ——
+    /// 它的光标模型还停在提示符后面。等 zle 收到 Ctrl-U + 命令要重画输入行时,
+    /// 它按自己以为的位置重画,和注入的文字互相覆盖,**回显落在哪一格是不确定的**。
+    /// 而屏幕回显本来就是 shell 的行为,不是 YeTerm 的契约 —— 我们的契约是
+    /// 「把带正确兼容参数的命令发出去」,所以断言就该盯这个。
+    private(set) static var lastSentCommand = ""
+
     static func arm(on tv: EventTerminalView, host: SSHHost? = nil, password: String?) {
         active.append(SSHAutoLogin(tv: tv, host: host, password: password))
     }
@@ -80,7 +90,10 @@ final class SSHAutoLogin {
                     if SSHHostStore.shared.hosts.contains(where: { $0.id == h.id }) {
                         SSHHostStore.shared.upsert(remembered)
                     }
-                    tv.send(txt: "\u{15}" + h.sshCommand(extraFlags: appliedFlags) + "\r")
+                    // \u{15} = Ctrl-U(先清掉行编辑器里可能残留的半截输入)
+                    let cmd = h.sshCommand(extraFlags: appliedFlags)
+                    Self.lastSentCommand = cmd
+                    tv.send(txt: "\u{15}" + cmd + "\r")
                     return
                 }
             }
