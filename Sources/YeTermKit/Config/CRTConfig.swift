@@ -114,11 +114,21 @@ public struct CRTConfig: Codable {
     public var plainTextColor: String?        // 缺省 #ffffff
     public var plainBackgroundColor: String?  // 缺省 #000000
     public var plainAnsiColors: [String]?     // 16 hex,缺省 Terminal.app 调色板
-    // 普通模式背景图片(v1.2 #16 用户追加:仅 CRT 关时生效;特效选图时一次性预处理)
+    // 背景图片(v1.2 #16 用户追加;**v1.5.1 起 CRT 模式也生效**)。
+    // 字段名保留 `plain*` 前缀是为了兼容已存在的用户配置档 —— 语义已扩成"两种模式
+    // 共用同一张图、同一套预处理特效",只是上屏路径不同:
+    //   · 普通模式 → 合成层第一笔铺底(OffscreenRenderer.encodeComposite 的 background);
+    //   · CRT 模式 → CRT 着色器的「屏幕底图」(替换染色公式的背景色项,见 CRT.metal)。
+    // 例外:内置「经典 CRT」组的 21 套真实设备还原主题不铺图(用户裁决 2026-07-31,
+    // 与"这组锁定 CRT 特效不可关"同一条产品逻辑;判定在 TerminalWindowController)。
     public var plainBackgroundImage: String?      // 图片路径;nil/空 = 无背景图
     public var plainBackgroundImageMode: Int?     // 0 无变化/1 毛玻璃/2 像素风/3 暗化/4 黑白胶片
     public var plainBackgroundBlur: Double?       // 毛玻璃模糊强度 0~1(缺省 0.5,仅 mode=1 用)
     public var plainBackgroundPixelPalette: Int?  // 像素风调色板:0 PICO-8/1 DB16/2 GameBoy/3 原色(仅 mode=2 用)
+    /// 背景图的荧光染色(v1.5.1,**仅 CRT 模式读**):nil/false = 保留图片原色,图当
+    /// 屏幕底图、磷光文字发光浮在上面(缺省);true = 整张图染成磷光单色 + 吃扫描线,
+    /// 像真 CRT 正在显示这张图。普通模式的背景图走合成层,不受此项影响。
+    public var crtBackgroundImageChroma: Bool?
     // ---- v1.4「文字发光」三项。**全部缺省 = 现有行为**,
     //      老配置档解析出来 nil 就走原路,观感零变化。 ----
     /// 辉光风格:0 = 归一化高斯(crterm 语义,能量守恒,缺省)/ 1 = 光晕 halation
@@ -225,6 +235,9 @@ public struct CRTConfig: Codable {
         if u.bloomShape > 0.5 { u.bloomAmount *= Self.dualShapeCompensation }
         if u.bloomStyle > 0.5 { u.bloomAmount *= Self.halationCompensation }
         u.emissiveModel = (emissiveModel ?? 0) == 1 ? 1 : 0
+        // 背景图荧光染色(v1.5.1)。`bgImageOn` 不在这里填 —— 那要看纹理到底加载成功
+        // 没有,由消费方(MetalOverlayView / RenderDemo)每帧按实际绑定的纹理填。
+        u.bgImageChroma = (crtBackgroundImageChroma ?? false) ? 1 : 0
         // 白热化(v1.4)。⚠️ **白底主题一律关掉** —— 2026-07-31 用户实测
         // 「Macintosh 128K 文字一点都看不清」的根修之一:
         // 白热化模拟的是「电子束把磷光体打到过曝而发白」,前提是**亮的东西是文字**。
@@ -291,6 +304,9 @@ public struct CRTConfig: Codable {
             u.bloomStyle = 0          // bloomAmount 已归零、辉光趟根本不跑,归零只为探针可断言
             u.overdrive = 0           // 白热化是 CRT 物理,普通终端模式不该有
             u.bloomShape = 0
+            // 背景图在普通模式走合成层铺底(不进 CRT pass),shader 侧一并中性化:
+            // bgImageOn 由消费方填 0,染色档归零只为探针可断言
+            u.bgImageChroma = 0
             // 直通模式颜色 = 普通终端独立配色(÷255 精确)。
             // colorPassthrough:shader 绕过 convertWithChroma(chroma=1 也有
             // fontColor 乘染/暗部混 bg 的串色,用户 p10k 实测);fontColor 仅供

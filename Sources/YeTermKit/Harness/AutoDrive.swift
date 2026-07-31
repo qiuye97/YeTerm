@@ -1359,8 +1359,85 @@ public enum AutoDrive {
         }
         snap("wake_recover")
 
+        // 场景 28(v1.5.1,用户需求「让背景图片在 CRT 模式也能生效,但经典 CRT 下不生效」):
+        // 同一张纯橙测试图(255,128,0),三种情形各取屏幕中心偏下的一个像素 ——
+        //   ① CRT + 普通主题(不属于内置「经典 CRT」组)→ 屏幕底图铺上,该处呈橙色系;
+        //   ② 打开荧光染色 → 同一处被染成磷光绿。基线特意配 fontColor 纯绿 + 色彩浓度 0,
+        //      好让"染没染"是个非黑即白的判定,而不是靠色差阈值猜;
+        //   ③ 切到内置「经典 CRT」组的 DEC VT220(图和开关一个字没动,**唯一变量是预设
+        //      身份**)→ 不铺图,该处回到该主题自己的暗背景。
+        // 判定用**整屏统计**而不是取单个像素点(第一版就是栽在这:跑到这一步时屏幕上
+        // 早堆满了前面场景的输出,随便挑的那个点正落在文字上,三档全测的是文字颜色)。
+        // 测试色选天蓝 (0,128,255):跟任何一款磷光色都不撞 —— 琥珀/绿/白的 b 都低,
+        // 于是"画面里有没有大片蓝"就等价于"图铺没铺上",不必跟文字的颜色打架。
+        var crtBGOK = true
+        step += 1
+        let crtBGPath = NSTemporaryDirectory() + "yeterm_crtbg_probe.png"
+        if !makeSolidPNG(r: 0, g: 128, b: 255, size: 64, path: crtBGPath) {
+            print("✗ CRT 背景图测试图生成失败")
+            crtBGOK = false
+        }
+        /// 返回 (蓝像素占比, 绿像素占比)。蓝 = 天蓝测试图原样上屏;
+        /// 绿 = 被磷光染成单色绿(基线 fontColor 特意配 #00ff00)。
+        /// 判定留足余量:扫描线暗带会把亮度压到 50%,所以阈值按暗带那一档算。
+        func crtBGRatios(_ tag: String) -> (blue: Double, green: Double)? {
+            let path = "\(outPrefix)_crtbg_\(tag).png"
+            guard overlay.dumpFrame(to: path), let img = loadPNG(path) else { return nil }
+            print("frame: \(path)")
+            var blue = 0, green = 0, total = 0
+            for y in stride(from: 0, to: img.height, by: 3) {
+                for x in stride(from: 0, to: img.width, by: 3) {
+                    guard let p = pixelAt(img, x: x, y: y) else { continue }
+                    total += 1
+                    if p.b > 100 && p.b > p.g + 40 && p.b > p.r + 40 { blue += 1 }
+                    if p.g > 40 && p.g > p.r + 30 && p.g > p.b + 30 { green += 1 }
+                }
+            }
+            guard total > 0 else { return nil }
+            return (Double(blue) / Double(total), Double(green) / Double(total))
+        }
+        var themeCfg = crtCfg
+        themeCfg.name = "我的配置"            // 用户配置区的名字,不属于内置「经典 CRT」组
+        themeCfg.fontColor = "#00ff00"        // 纯绿磷光 + 零色彩浓度 → 染色档必然把橙变绿
+        themeCfg.chromaColor = 0
+        themeCfg.plainBackgroundImage = crtBGPath
+        themeCfg.plainBackgroundImageMode = 0
+        themeCfg.crtBackgroundImageChroma = false
+        wc.applySettings(themeCfg, fontSize: 14, cursorStyle: 0)
+        pump(0.4)
+        let rRaw = crtBGRatios("raw")
+        // 铺上了 = 大片蓝(文字只占屏幕一小块,所以 30% 这条线足以把"铺满"和"没铺"分开)
+        let rawHit = rRaw.map { $0.blue > 0.3 } ?? false
+        themeCfg.crtBackgroundImageChroma = true
+        wc.applySettings(themeCfg, fontSize: 14, cursorStyle: 0)
+        pump(0.4)
+        let rChroma = crtBGRatios("chroma")
+        // 染色档 = 蓝彻底消失、换成大片磷光绿
+        let chromaHit = rChroma.map { $0.blue < 0.05 && $0.green > 0.3 } ?? false
+        var classicCfg = Presets.byName("DEC VT220") ?? themeCfg
+        classicCfg.plainBackgroundImage = crtBGPath
+        classicCfg.plainBackgroundImageMode = 0
+        wc.applySettings(classicCfg, fontSize: 14, cursorStyle: 0)
+        pump(0.4)
+        let rClassic = crtBGRatios("classic_device")
+        // 没铺 = 蓝绿都没有大片(VT220 的琥珀文字 r 最高,两个判定都不会误命中)
+        let classicHit = rClassic.map { $0.blue < 0.05 && $0.green < 0.05 } ?? false
+        func fmt(_ r: (blue: Double, green: Double)?) -> String {
+            r.map { String(format: "蓝%.2f/绿%.2f", $0.blue, $0.green) } ?? "nil"
+        }
+        if rawHit && chromaHit && classicHit {
+            print("✓ CRT 背景图:原色档铺上(\(fmt(rRaw))) / 染色档染成磷光绿(\(fmt(rChroma))) / 经典 CRT 设备主题不铺(\(fmt(rClassic)))")
+        } else {
+            print("✗ CRT 背景图异常 raw=\(fmt(rRaw)) chroma=\(fmt(rChroma)) classic=\(fmt(rClassic))")
+            crtBGOK = false
+        }
+        try? FileManager.default.removeItem(atPath: crtBGPath)
+        wc.applySettings(crtCfg, fontSize: 14, cursorStyle: 0)   // 收尾回基线
+        pump(0.2)
+        snap("crt_bg_image")
+
         print("AUTO-DRIVE-DONE steps=\(step)")
-        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK) ? 0 : 1
+        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK && crtBGOK) ? 0 : 1
     }
 
     // ---- 场景 21 的小工具:纯色 PNG 生成 / PNG 像素直读 ----

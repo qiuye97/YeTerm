@@ -157,10 +157,10 @@
 "当前:crterm 专属调色板(亮青=奶油白等荧光考据色)。修改任一色即成为自定义配色;色彩浓度低时 ANSI 色会被荧光染色。" = "Currently: the cool-retro-term signature palette (researched phosphor colors, e.g. bright cyan is a cream white). Changing any color makes it a custom palette; at low chroma the ANSI colors get tinted by the phosphor.";
 "当前:自定义 ANSI 表(经典配色主题自带官方色)。「还原专属调色板」回到 crterm 荧光考据色。" = "Currently: a custom ANSI table (classic color themes ship their official palettes). “Restore Signature Palette” goes back to the researched phosphor colors.";
 
-// ── Settings: background image (plain mode) ─────────────────────────────────
+// ── Settings: background image (both plain and CRT mode since v1.5.1) ───────
 "背景图片" = "Background Image";
 "选择图片…" = "Choose Image…";
-"选择普通模式的终端背景图片" = "Choose a background image for plain terminal mode";
+"选择终端背景图片" = "Choose a background image for the terminal";
 "未设置 —— 背景为上方的纯背景色。" = "Not set — the background is the solid color above.";
 "无变化" = "As-is";
 "毛玻璃" = "Frosted glass";
@@ -174,6 +174,11 @@
 "GameBoy 绿" = "Game Boy green";
 "原色" = "Original";
 "特效在选图时一次性处理成缓存,不增加每帧渲染负担;暗化 / 黑白胶片会把图片压暗,文字浮在上面更好读。" = "The effect is baked once when you pick the image and cached, so it costs nothing per frame. Darkened and B&W film dim the picture so text reads better on top of it.";
+"特效在选图时一次性处理成缓存,不增加每帧渲染负担;图片跟着屏幕弧度一起鼓、被机壳裁切。暗化 / 黑白胶片会把图片压暗,文字浮在上面更好读。" = "The effect is baked once when you pick the image and cached, so it costs nothing per frame. The picture bulges with the screen curvature and is clipped by the bezel. Darkened and B&W film dim the picture so text reads better on top of it.";
+"荧光染色" = "Phosphor Tinting";
+"开:整张图被染成磷光单色、跟着吃扫描线 —— 像这台老显示器正在显示这张图。" = "On: the whole picture is tinted to the phosphor color and picks up the scanlines — as if this old monitor were displaying it.";
+"关:图片保留原色,只当屏幕底图;磷光文字照常发光浮在它上面,不会被图洗掉。" = "Off: the picture keeps its own colors and just sits behind everything; the glowing phosphor text stays on top and never gets washed out by it.";
+"「%@」是真实设备还原主题,不铺背景图 —— 它还原的是一台具体的老机器,屏幕后面贴张壁纸就不是那台机器了。想给 CRT 屏配背景图请选「经典配色」组主题,或自建配置。" = "“%@” recreates a real machine, so it takes no background image — a wallpaper behind the screen would stop it being that machine. To put a picture behind a CRT screen, pick a theme from the Classic Colors group or build your own.";
 
 // ── Settings: presets ───────────────────────────────────────────────────────
 "预设" = "Presets";

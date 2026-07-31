@@ -98,7 +98,21 @@ struct CRTUniforms {
     float overdriveKnee;           // 228 白热化起点(束驱动量阈值,低于此不发白)→ 232
     float bloomShape;              // 232 光晕形状 0=单层/1=紧核+长尾。**着色器不读**,
                                    //     同 bloomStyle 由 CPU 侧 EffectChain 消费 → 236
+    // ── 背景图片(v1.5.1 用户追加:CRT 模式也能铺背景图)────────────────────
+    // 缺省 bgImageOn=0 时下面三个字段一概不读,染色退化成原来的 backgroundColor
+    // —— 逐比特等同于没有这段(已用 --render-demo 对拍确认)。
+    float bgImageOn;               // 236 >0.5 = texture(4) 绑了背景图 → 240
+    float2 bgImageUVScale;         // 240 aspect-fill 的 UV 缩放(float2 要 8 字节对齐,
+                                   //     故排在两个 float 中间,前后无空洞)→ 248
+    float bgImageChroma;           // 248 0=保留图片原色(缺省)/1=整张图荧光染色 → 252
+                                   //     (结构体按 float4 的 16 字节对齐补到 256)
 };
+
+// 二进制合同的编译期保险(v1.5.1 加):Swift 侧 CRTPass.swift 的同名结构体
+// stride 必须同为 256。两边任一处漏改字段,着色器**编译当场就炸**,而不是等到画面
+// 神秘错乱才回头猜 —— float2/float4 的对齐规则最容易在追加字段时踩空
+// (offsetof 在 MSL 里不可用,只能钉总大小;逐字段偏移由两侧的注释和探针盯着)。
+static_assert(sizeof(CRTUniforms) == 256, "CRTUniforms 与 Swift 侧 stride 不一致");
 
 static inline float min2(float2 v) { return min(v.x, v.y); }
 static inline float rgb2grey(float3 v) { return dot(v, float3(0.21, 0.72, 0.04)); }
@@ -212,11 +226,27 @@ static float3 applyRasterization(float2 screenCoords, float3 texel,
 }
 
 // terminal_dynamic.frag:123-132
-static inline float3 convertWithChroma(float3 inColor, constant CRTUniforms &u) {
+//
+// v1.5.1 背景图片:原式最后一步是 `mix(backgroundColor, 前景色, 内容亮度)` ——
+// 那个 backgroundColor 就是"屏幕上没被电子束打亮的地方是什么颜色"。**背景图要做的
+// 事,恰好就是把这一项换成图片的像素**,别的一律不动:
+//   · 内容亮度 grey=1 的笔画芯 → 输出仍是纯磷光前景色,图一点也混不进来
+//     ⇒ 无论背景图多亮多花,文字永远是原本那个颜色,不会被"洗掉";
+//   · grey=0 的空白格 → 输出即图片本色 ⇒ 图正常显示;
+//   · 白热化(applyOverdrive)的驱动量取自 txt_color(内容),图不在其中 ⇒ 图不会被推白
+//     —— v1.4.1「白底主题被白热化洗没」那类事故在这里天然不成立;
+//   · 辉光/雪花/亮度/闪烁全在这一步之后叠加 ⇒ 文字的光照在图上,物理层序不变。
+// 故新增 `convertWithChromaBG`(显式传背景色),老的 `convertWithChroma` 变成
+// "背景色 = u.backgroundColor" 的薄壳 —— **没有背景图时两者逐比特相同**。
+static inline float3 convertWithChromaBG(float3 inColor, float3 bgColor, constant CRTUniforms &u) {
     float grey = rgb2grey(inColor);
     float denom = max(grey, 0.0001);
     float3 foregroundColor = mix(u.fontColor.rgb, inColor * u.fontColor.rgb / denom, u.chromaColor);
-    return mix(u.backgroundColor.rgb, foregroundColor, grey);
+    return mix(bgColor, foregroundColor, grey);
+}
+
+static inline float3 convertWithChroma(float3 inColor, constant CRTUniforms &u) {
+    return convertWithChromaBG(inColor, u.backgroundColor.rgb, u);
 }
 
 // ============================================================================
@@ -341,6 +371,7 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
                              texture2d<float> noiseTex [[texture(1)]],
                              texture2d<float> bloomTex [[texture(2)]],
                              texture2d<float> burnInTex [[texture(3)]],
+                             texture2d<float> bgImageTex [[texture(4)]],
                              constant CRTUniforms &u [[buffer(0)]]) {
     constexpr sampler texSampler(address::clamp_to_edge, filter::linear);
     constexpr sampler noiseSampler(address::repeat, filter::linear);   // 噪点纹理 wrap=repeat(原版同)
@@ -494,6 +525,26 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
     // 光栅化作用在内容坐标上(与文本行严格对齐;弧度时随 staticCoords 弯曲,与原版一致)
     txt_color = applyRasterization(c, txt_color, u.virtualResolution, u.rasterizationIntensity, u.rasterMode);
 
+    // ── 背景图片(v1.5.1):CRT 模式的「屏幕底图」──────────────────────────
+    // 拿它替换染色公式里的背景色项(理由见 convertWithChromaBG 上方长注释)。
+    // 采样坐标用 screenCoords 而非 uv —— 那是**弧度扭曲 + 水平失步之后**的屏幕
+    // 坐标,于是图跟着显像管一起鼓、一起失步抖,像是真的显示在这块玻璃后面,
+    // 而不是贴在玻璃外面的一张纸。后面 isScreen/机壳/开机塌缩也照旧作用于它。
+    float3 screenBg = u.backgroundColor.rgb;
+    if (u.bgImageOn > 0.5) {
+        float2 bguv = (screenCoords - float2(0.5)) * u.bgImageUVScale + float2(0.5);
+        float3 img = bgImageTex.sample(texSampler, clamp(bguv, 0.0, 1.0)).rgb;
+        // 荧光染色档(用户可选):整张图按磷光色重染 = "真 CRT 正在显示这张图"。
+        // 关 = 保留原色,图只是屏幕底色,磷光文字发光浮在它上面。
+        if (u.bgImageChroma > 0.0) {
+            img = mix(img, convertWithChroma(img, u), u.bgImageChroma);
+        }
+        // 图也吃扫描线/像素栅格:它是"显示出来的东西",不是贴在管子外面的纸。
+        // 用内容坐标 c(与文字同一套栅格)——暗带落在同样的位置,不会与文字打架。
+        img = applyRasterization(c, img, u.virtualResolution, u.rasterizationIntensity, u.rasterMode);
+        screenBg = img;
+    }
+
     // 普通终端模式(v1.2 用户实测勘差):convertWithChroma 即使 chroma=1 也会把
     // fontColor 乘进所有颜色、backgroundColor 混进暗部(p10k 彩色块被文字颜色
     // 串染)—— 直通模式内容原色直出;余量/留白区填 backgroundColor(与主体同源
@@ -507,7 +558,8 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
     if (u.emissiveModel > 0.5 && u.colorPassthrough <= 0.5) {
         // ① 染色:直接复用 convertWithChroma —— 与风格 0 **逐比特相同**。
         //    (刻意如此,理由见上方长注释的"两条保守选择")
-        float3 light = convertWithChroma(txt_color, u);
+        //    v1.5.1:背景色项换成 screenBg(无背景图时 = u.backgroundColor,逐比特不变)
+        float3 light = convertWithChromaBG(txt_color, screenBg, u);
         light = applyOverdrive(light, txt_color, u.overdrive, u.overdriveKnee);  // 白热化(仅笔画自身)
         // ② 辉光:软肩并入,不做 clamp(0,0.5) 硬砍 —— 这是与风格 0 的真正分歧点
         if (u.bloomAmount > 0.0) {
@@ -523,7 +575,7 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
     } else {
     finalColor = (u.colorPassthrough > 0.5)
         ? mix(u.backgroundColor.rgb, txt_color, inContent)
-        : convertWithChroma(txt_color, u);
+        : convertWithChromaBG(txt_color, screenBg, u);   // v1.5.1:背景色项 → 屏幕底图
 
     // 白热化(v1.4):笔画自身过曝发白。直通模式不参与(那是普通终端,无 CRT 物理)。
     // 位置在辉光相加**之前** —— 只白笔画芯,不白外圈光晕(照片里光晕仍是绿的)

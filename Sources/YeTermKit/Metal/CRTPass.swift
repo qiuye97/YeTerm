@@ -77,6 +77,18 @@ struct CRTUniforms {
     /// 光晕形状(v1.4;主题字段 bloomShape):0 = 单层高斯(缺省)/ 1 = 紧核 + 长尾(双尺度)。
     /// 同 bloomStyle:**只在 CPU 侧读**,着色器不读,此处占位维持二进制合同。
     var bloomShape: Float = 0                  // → 236(两侧同步)
+    // ---- 背景图片(v1.5.1 用户追加:CRT 模式也能铺背景图)----
+    /// >0.5 = texture(4) 绑了背景图,着色器用它替换染色公式里的「屏幕底色」项。
+    /// 0(缺省)= 三个字段一概不读,输出逐比特等同于没这段。
+    var bgImageOn: Float = 0                   // → 240
+    /// aspect-fill 的 UV 缩放(`uv' = (uv-0.5)*scale+0.5`,与合成层 plain_bg_fill_fragment
+    /// 同一套语义:按比例盖满画面、长出来的边裁掉,不拉伸)。
+    /// ⚠️ 排这个位置是因为 float2 要 **8 字节对齐**:236 不是 8 的倍数,240 才是 ——
+    /// 夹在两个 float 中间恰好前后无空洞,两侧结构体大小同为 256(含尾部对齐)。
+    var bgImageUVScale: SIMD2<Float> = .init(1, 1)   // 240 → 248
+    /// 荧光染色:0 = 保留图片原色(缺省,图当屏幕底图)/ 1 = 整张图过 convertWithChroma
+    /// (磷光单色,像真 CRT 在显示这张图)。中间值可插值,目前设置页只给 0/1 两档。
+    var bgImageChroma: Float = 0               // 248 → 252(结构体按 float4 对齐补到 256)
 }
 
 enum CRTPass {

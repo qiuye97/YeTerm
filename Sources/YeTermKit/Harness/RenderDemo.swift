@@ -45,10 +45,11 @@ public struct RenderDemoOptions {
     public var preeditText: String?
     public var bootTime: Double?     // --boot-time T:开机自检定格帧(v1.2 #10)
     public var degauss: Double?      // --degauss A:消磁波纹包络定格(v1.2 #13)     // 模拟 IME 预编辑(拼音自绘的离屏验证)
-    public var plainBGPath: String?  // --plain-bg PATH:普通模式背景图片(v1.2 #16,需普通模式配置)
+    public var plainBGPath: String?  // --plain-bg PATH:背景图片(v1.2 #16;v1.5.1 起 CRT 模式同样支持)
     public var plainBGMode = 0       // --plain-bg-mode 0-4:无/毛玻璃/像素风/暗化/黑白
     public var plainBGBlur = 0.5     // --plain-bg-blur 0~1:毛玻璃模糊强度
     public var plainBGPalette = 0    // --plain-bg-palette 0-3:像素风调色板(PICO-8/DB16/GameBoy/原色)
+    public var plainBGChroma = false // --plain-bg-chroma:CRT 模式下把背景图荧光染色(v1.5.1)
     public var powerOn: Double?         // 开机动画进度定格(0~1;nil=稳态。v1.1 自测用)
 }
 
@@ -208,6 +209,28 @@ public enum RenderDemo {
                     return 1
                 }
             }
+
+            // 背景图片(v1.5.1):**CRT 模式**走的是另一条路 —— 图不进内容纹理,
+            // 而是绑到 CRT pass 的 texture(4) 当「屏幕底图」,由着色器替换染色公式
+            // 里的背景色项(与 GUI 的 buildUniforms 同构,aspect-fill 公式也同一套)。
+            // 有它才能用 --render-demo 对拍 CRT 模式的背景图观感。
+            var crtBGImage: MTLTexture?
+            if let bgPath = opt.plainBGPath, u.colorPassthrough <= 0.5 {
+                let pb = PlainBackground(ctx: mtl)
+                pb.update(path: bgPath, mode: opt.plainBGMode, blur: opt.plainBGBlur,
+                          palette: opt.plainBGPalette)
+                guard let tex = pb.texture else {
+                    err("--plain-bg 图片加载失败: \(bgPath)")
+                    return 1
+                }
+                crtBGImage = tex
+                u.bgImageOn = 1
+                if opt.plainBGChroma { u.bgImageChroma = 1 }   // 荧光染色档(配置里也可开)
+                let targetAspect = Float(crtSource.width) / Float(max(crtSource.height, 1))
+                let imgAspect = Float(tex.width) / Float(max(tex.height, 1))
+                u.bgImageUVScale = .init(min(1, targetAspect / imgAspect),
+                                         min(1, imgAspect / targetAspect))
+            }
             if opt.debugCursor {
                 let pos = terminal.getCursorLocation()
                 let w = 1.0 / Float(opt.cols), h = 1.0 / Float(opt.rows)
@@ -231,6 +254,12 @@ public enum RenderDemo {
                                                burnInTime: u.burnInTime, wait: true) {
                 u.burnInLastUpdate = chain.burnInLastUpdate
                 extras.append(bi)
+            } else if let black = chain?.blackTexture {
+                extras.append(black)
+            }
+            // texture(4) = 背景图(CRT 模式);无图时黑纹理占位维持索引对齐
+            if let bgi = crtBGImage {
+                extras.append(bgi)
             } else if let black = chain?.blackTexture {
                 extras.append(black)
             }

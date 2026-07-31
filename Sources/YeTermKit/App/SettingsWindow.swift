@@ -467,7 +467,27 @@ private struct PlainColorsPage: View {
         }
         .glassCard()
 
-        // ---- 背景图片(v1.2 #16):仅普通模式生效;特效在选图时一次性预处理 ----
+        BackgroundImageCard(model: model, crtMode: false)
+    }
+}
+
+// MARK: - 背景图片卡片(v1.2 #16;v1.5.1 起 CRT 模式共用)
+
+/// 两种模式共用同一份背景图设置(同一张图、同一套一次性预处理特效),所以这张卡片
+/// 被普通模式颜色页和 CRT 颜色页各挂一份。差别只有两处:
+///   ① CRT 模式多一个「荧光染色」开关(把图染成磷光单色 = 真 CRT 在显示这张图);
+///   ② CRT 模式下内置「经典 CRT」组的设备还原主题整块禁用(用户裁决 2026-07-31,
+///      与 CRTPage 里"这组不可关特效"是同一条产品逻辑,提示语也照同一套写法)。
+private struct BackgroundImageCard: View {
+    @ObservedObject var model: SettingsModel
+    /// true = 挂在 CRT 颜色页(多染色开关 + 经典 CRT 锁定);false = 普通模式颜色页
+    var crtMode: Bool
+
+    private var lockedByClassicDevice: Bool {
+        crtMode && Presets.isClassicCRT(model.presetName)
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(L("背景图片")).font(.caption.bold()).foregroundStyle(.secondary)
@@ -483,7 +503,7 @@ private struct PlainColorsPage: View {
                     let panel = NSOpenPanel()
                     panel.allowedContentTypes = [.image]
                     panel.allowsMultipleSelection = false
-                    panel.message = L("选择普通模式的终端背景图片")
+                    panel.message = L("选择终端背景图片")
                     if panel.runModal() == .OK, let url = panel.url {
                         model.plainBackgroundImagePath = url.path
                     }
@@ -491,7 +511,14 @@ private struct PlainColorsPage: View {
                 .glassButton()
                 .controlSize(.small)
             }
-            if model.plainBackgroundImagePath.isEmpty {
+            .disabled(lockedByClassicDevice)
+            .opacity(lockedByClassicDevice ? 0.5 : 1)
+
+            if lockedByClassicDevice {
+                Text(Lf("「%@」是真实设备还原主题,不铺背景图 —— 它还原的是一台具体的老机器,屏幕后面贴张壁纸就不是那台机器了。想给 CRT 屏配背景图请选「经典配色」组主题,或自建配置。", Presets.displayName(model.presetName)))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if model.plainBackgroundImagePath.isEmpty {
                 Text(L("未设置 —— 背景为上方的纯背景色。"))
                     .font(.caption).foregroundStyle(.tertiary)
             } else {
@@ -521,7 +548,22 @@ private struct PlainColorsPage: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                Text(L("特效在选图时一次性处理成缓存,不增加每帧渲染负担;暗化 / 黑白胶片会把图片压暗,文字浮在上面更好读。"))
+                if crtMode {
+                    // 荧光染色(v1.5.1 用户裁决:两种观感都留着,缺省保留原色)
+                    Toggle(isOn: $model.crtBackgroundImageChroma) {
+                        Text(L("荧光染色"))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    Text(model.crtBackgroundImageChroma
+                         ? L("开:整张图被染成磷光单色、跟着吃扫描线 —— 像这台老显示器正在显示这张图。")
+                         : L("关:图片保留原色,只当屏幕底图;磷光文字照常发光浮在它上面,不会被图洗掉。"))
+                        .font(.caption).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(crtMode
+                     ? L("特效在选图时一次性处理成缓存,不增加每帧渲染负担;图片跟着屏幕弧度一起鼓、被机壳裁切。暗化 / 黑白胶片会把图片压暗,文字浮在上面更好读。")
+                     : L("特效在选图时一次性处理成缓存,不增加每帧渲染负担;暗化 / 黑白胶片会把图片压暗,文字浮在上面更好读。"))
                     .font(.caption).foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -744,6 +786,9 @@ private struct ColorsPage: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .glassCard()
+
+        // 背景图片(v1.5.1:CRT 模式也能铺;与普通模式共用同一份设置)
+        BackgroundImageCard(model: model, crtMode: true)
     }
 
     private let ansiNames = [L("黑"), L("红"), L("绿"), L("黄"), L("蓝"), L("品红"), L("青"), L("白")]

@@ -861,11 +861,19 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         if changed {
             ov.invalidateContentCache()
         }
-        // 背景图片(v1.2 #16):仅普通模式挂载;路径/模式没变时 overlay 侧键控
-        // 缓存空转,广播打进来不重复解码。CRT 模式传 nil = 顺手卸载成品纹理
-        let plainOn = !(cfg.crtEffectsEnabled ?? true)
+        // 背景图片(v1.2 #16;**v1.5.1 起 CRT 模式也铺**)。两种模式共用同一张图和
+        // 同一套预处理特效,上屏路径不同(合成层铺底 / CRT 着色器的屏幕底图),
+        // 由 overlay 内部按 colorPassthrough 自行分派 —— 这里只回答"该不该有图"。
+        //
+        // 唯一的例外:**内置「经典 CRT」组的 21 套真实设备还原主题不铺图**
+        // (用户裁决 2026-07-31)。理由与"这组锁定 CRT 特效不可关"是同一条:
+        // 它们还原的是一台具体的老机器,屏幕后面贴张壁纸就不是那台机器了。
+        // 判定按预设名而非"CRT 开着就不铺"—— 经典配色/私人收藏/自定义配置在
+        // CRT 模式下照铺。路径/模式没变时 overlay 侧键控缓存空转,广播打进来不
+        // 重复解码;传 nil = 顺手卸载成品纹理。
+        let classicDevice = crtOn && Presets.isClassicCRT(cfg.name ?? "")
         let bgPath = (cfg.plainBackgroundImage?.isEmpty == false) ? cfg.plainBackgroundImage : nil
-        ov.setPlainBackground(path: plainOn ? bgPath : nil,
+        ov.setPlainBackground(path: classicDevice ? nil : bgPath,
                               mode: cfg.plainBackgroundImageMode ?? 0,
                               blur: cfg.plainBackgroundBlur ?? 0.5,
                               palette: cfg.plainBackgroundPixelPalette ?? 0)

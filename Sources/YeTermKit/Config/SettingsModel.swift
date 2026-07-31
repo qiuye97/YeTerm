@@ -85,11 +85,13 @@ final class SettingsModel: ObservableObject {
     @Published var plainTextColorHex: String = "#ffffff"
     @Published var plainBackgroundColorHex: String = "#000000"
     @Published var plainAnsiHex: [String] = AnsiColor.terminalAppAnsiHex
-    // 普通模式背景图片(v1.2 #16):空 = 未设置;mode 0-4 = 无/毛玻璃/像素风/暗化/黑白
+    // 背景图片(v1.2 #16;v1.5.1 起 CRT 模式也生效,两种模式共用这一份设置)。
+    // 空 = 未设置;mode 0-4 = 无/毛玻璃/像素风/暗化/黑白
     @Published var plainBackgroundImagePath: String = ""
     @Published var plainBackgroundImageMode: Int = 0
     @Published var plainBackgroundBlur: Double = 0.5   // 毛玻璃模糊强度(仅 mode=1)
     @Published var plainBackgroundPixelPalette: Int = 0   // 像素风调色板(仅 mode=2)
+    @Published var crtBackgroundImageChroma: Bool = false   // 背景图荧光染色(仅 CRT 模式)
     // 小件三连(v1.2 #8)
     @Published var inheritCwd: Bool = true
     @Published var scrollbackLines: Int = 10000
@@ -181,6 +183,7 @@ final class SettingsModel: ObservableObject {
         plainBackgroundImageMode = c.plainBackgroundImageMode ?? plainBackgroundImageMode
         plainBackgroundBlur = c.plainBackgroundBlur ?? plainBackgroundBlur
         plainBackgroundPixelPalette = c.plainBackgroundPixelPalette ?? plainBackgroundPixelPalette
+        crtBackgroundImageChroma = c.crtBackgroundImageChroma ?? crtBackgroundImageChroma
         inheritCwd = c.inheritCwd ?? inheritCwd
         scrollbackLines = c.scrollbackLines ?? scrollbackLines
         optionAsMeta = c.optionAsMeta ?? optionAsMeta
@@ -402,6 +405,7 @@ final class SettingsModel: ObservableObject {
         c.plainBackgroundImageMode = plainBackgroundImageMode
         c.plainBackgroundBlur = plainBackgroundBlur
         c.plainBackgroundPixelPalette = plainBackgroundPixelPalette
+        c.crtBackgroundImageChroma = crtBackgroundImageChroma
         c.inheritCwd = inheritCwd
         c.scrollbackLines = scrollbackLines
         c.optionAsMeta = optionAsMeta

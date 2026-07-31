@@ -201,9 +201,15 @@ public enum SettingsProbe {
         //    overdrive/overdriveKnee)后 size = 232。setFragmentBytes 传的是 .size,
         //    最后一个字段必须落在 size 之内,否则 GPU 读到垃圾(216 也不是 16 的倍数,
         //    非整倍 size 本就有先例、可行;这里只钉住「别漏改一侧」)
-        check("CRTUniforms 布局 = 236 字节",
-              MemoryLayout<CRTUniforms>.size == 236,
+        // v1.5.1 背景图片再追加三个字段(bgImageOn / bgImageUVScale / bgImageChroma)
+        // → size = 252。中间那个是 float2,**要 8 字节对齐**:236 不是 8 的倍数,所以
+        // 它排在 240,前后各一个 float 恰好填满、无空洞 —— 这条断言就是防这类排布事故
+        // (排错了两侧结构体大小会对不上,GPU 从此读到错位的参数)。
+        check("CRTUniforms 布局 = 252 字节",
+              MemoryLayout<CRTUniforms>.size == 252,
               detail: "size=\(MemoryLayout<CRTUniforms>.size) stride=\(MemoryLayout<CRTUniforms>.stride)")
+        check("背景图字段缺省中性(不铺图 + 不染色)",
+              CRTUniforms().bgImageOn == 0 && CRTUniforms().bgImageChroma == 0)
         // ② 缺省必须 = 老行为(旧配置档解析出 nil → 走原路,观感零变化)
         var neutral = CRTUniforms()
         CRTConfig().apply(to: &neutral)

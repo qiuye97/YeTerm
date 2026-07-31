@@ -593,13 +593,19 @@ final class MetalOverlayView: MTKView {
         scheduleCapture()
     }
 
-    // ---- 普通模式背景图片(v1.2 #16)----
-    // 加载/特效预处理在 PlainBackground 里键控缓存;仅直通模式(colorPassthrough)
-    // 时被 performCapture 消费 —— CRT 开着时即使配置了图片也不掺和
+    // ---- 背景图片(v1.2 #16;v1.5.1 起 CRT 模式也铺)----
+    // 加载/特效预处理在 PlainBackground 里键控缓存,两种模式共用同一张成品纹理,
+    // 只是上屏路径按当前模式分派:
+    //   · 直通模式(colorPassthrough>0.5)→ performCapture 把它当合成层第一笔铺底,
+    //     pane 内容以透明底叠上去(v1.2 原路径,一字未动);
+    //   · CRT 模式 → buildUniforms 把它绑到 CRT pass 的 texture(4),着色器拿它
+    //     替换染色公式里的「屏幕底色」项(见 CRT.metal 的 convertWithChromaBG)。
+    // "该不该有图"由 TerminalWindowController 决定(含经典 CRT 组的排除),这里
+    // 只负责"有图时走哪条路"。
     private var plainBG: PlainBackground?
 
     /// 设置接线(applyCRTMode 每次广播都会调;路径/模式/强度没变=纯空转)。
-    /// path=nil 即清除(CRT 模式下也传 nil,成品纹理顺手释放)
+    /// path=nil 即清除(成品纹理顺手释放)
     func setPlainBackground(path: String?, mode: Int, blur: Double, palette: Int) {
         if path != nil && plainBG == nil { plainBG = PlainBackground(ctx: mtl) }
         guard let pb = plainBG else { return }
@@ -753,7 +759,10 @@ final class MetalOverlayView: MTKView {
 
         var draws: [(texture: MTLTexture?, viewport: MTLViewport)] = []
 
-        // 普通模式背景图(v1.2 #16):仅直通时消费;有图 → pane 内容透明清屏
+        // 背景图(v1.2 #16):**合成层路径只属于直通模式**;有图 → pane 内容透明清屏。
+        // CRT 模式绝不能走这里 —— 图一旦进了内容纹理就成了"内容",会被荧光染色、
+        // 吃辉光/白热化/余辉拖尾,整张图跟着发光拖影,文字也就没法看了。CRT 模式
+        // 走 buildUniforms 那条 texture(4) 屏幕底图路径。
         let plainBGTex = uniforms.colorPassthrough > 0.5 ? plainBG?.texture : nil
 
         for (view, rect) in layout.panes {
@@ -1006,6 +1015,23 @@ final class MetalOverlayView: MTKView {
         u.bloomPad = bloomTexture != nil ? (effects?.bloomPadUV ?? .zero) : .zero
         u.powerOnProgress = currentPowerProgress(now: now)   // 开机/关机动画(稳态=1)
 
+        // 背景图片(v1.5.1):CRT 模式把成品纹理当「屏幕底图」绑到 texture(4)。
+        // 直通模式不进这条路(图已由合成层铺好),故按 colorPassthrough 分派。
+        // `effects != nil` 是必要条件:extras 数组靠 blackTexture 兜住空位来维持
+        // 索引对齐(noise=1/bloom=2/burnIn=3/bgImage=4),没有它数组会塌陷错位。
+        if u.colorPassthrough <= 0.5, effects != nil,
+           let bg = plainBG?.texture, bg.width > 0, bg.height > 0 {
+            u.bgImageOn = 1
+            // aspect-fill:与合成层 plain_bg_fill_fragment 同一套公式(按比例盖满画面、
+            // 长出来的边裁掉,不拉伸)—— 两条路径换着走时构图不跳。
+            let targetAspect = Float(dw) / Float(max(dh, 1))
+            let imgAspect = Float(bg.width) / Float(max(bg.height, 1))
+            u.bgImageUVScale = .init(min(1, targetAspect / imgAspect),
+                                     min(1, imgAspect / targetAspect))
+        } else {
+            u.bgImageOn = 0
+        }
+
         // Visual Bell(v1.2 #5):bell 后 0.18s 内亮度短脉冲(sin 半波包络,峰值 +45%),
         // 复古演绎"荧光屏闪一下";clamp 到 uniforms 合法域,只动本帧拷贝不污染基线
         if bellFlashStart > 0 {
@@ -1106,10 +1132,13 @@ final class MetalOverlayView: MTKView {
         }
         u.burnInLastUpdate = effects.map { $0.burnInLastUpdate } ?? 0
         let black = effects?.blackTexture
+        // texture(1..4) = 噪点 / 辉光 / 余辉 / 背景图。空位一律用 blackTexture 占住
+        // 维持索引对齐(compactMap 会让数组塌陷 → 后面的纹理全绑错位)
         let extras: [MTLTexture] = [
             noiseTexture ?? black,
             bloomTexture ?? black,
             (u.burnIn > 0 ? effects?.currentBurnIn : nil) ?? black,
+            (u.bgImageOn > 0.5 ? plainBG?.texture : nil) ?? black,
         ].compactMap { $0 }
         do {
             let out = try withUnsafeBytes(of: &u) { p in
@@ -1234,10 +1263,13 @@ final class MetalOverlayView: MTKView {
 
         u.burnInLastUpdate = effects.map { $0.burnInLastUpdate } ?? 0
         let black = effects?.blackTexture
+        // texture(1..4) = 噪点 / 辉光 / 余辉 / 背景图。空位一律用 blackTexture 占住
+        // 维持索引对齐(compactMap 会让数组塌陷 → 后面的纹理全绑错位)
         let extras: [MTLTexture] = [
             noiseTexture ?? black,
             bloomTexture ?? black,
             (u.burnIn > 0 ? effects?.currentBurnIn : nil) ?? black,
+            (u.bgImageOn > 0.5 ? plainBG?.texture : nil) ?? black,
         ].compactMap { $0 }
         do {
             try withUnsafeBytes(of: &u) { p in

@@ -5,6 +5,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [Unreleased]
+
+### CRT rendering
+
+- **Background images now work in CRT mode**, not only in plain terminal mode.
+  The picture replaces the "unlit screen" term of the phosphor colouring
+  formula rather than being composited into the content texture, which means
+  glowing text always keeps its own colour and can never be washed out by a
+  bright image, and the picture is never subject to overdrive or persistence
+  smear. It bulges with the screen curvature, picks up the scanlines, and is
+  clipped by the bezel — it reads as something displayed behind the glass
+  rather than a sheet of paper taped to the front.
+- Optional **phosphor tinting** for that background image: off (default) keeps
+  the picture's own colours, on renders the whole picture in the phosphor
+  colour, as if this old monitor were displaying it.
+- The 21 real-device restoration themes in the "Classic CRT" preset group take
+  no background image by design — the same reasoning as their locked CRT
+  effects: a wallpaper behind the screen would stop them being that machine.
+
 ## [1.0.0] — 2026-07-31
 
 First public release.

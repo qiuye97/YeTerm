@@ -163,6 +163,7 @@ public enum YeTermCLI {
             if let v = value(after: "--plain-bg-mode", in: args), let n = Int(v) { opt.plainBGMode = n }
             if let v = value(after: "--plain-bg-blur", in: args), let n = Double(v) { opt.plainBGBlur = n }
             if let v = value(after: "--plain-bg-palette", in: args), let n = Int(v) { opt.plainBGPalette = n }
+            if args.contains("--plain-bg-chroma") { opt.plainBGChroma = true }
             // 字体跟预设(v1.2 #15):未显式 --font 时用预设/配置里的匹配字体,
             // 与 GUI 启动路径同语义(显式 flag 永远赢)
             if value(after: "--font", in: args) == nil,
