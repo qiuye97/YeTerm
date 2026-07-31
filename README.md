@@ -4,6 +4,7 @@
 
 **A native Apple Silicon terminal for macOS that looks like a CRT — and lets you type Chinese on it.**
 
+[![CI](https://github.com/qiuye97/YeTerm/actions/workflows/ci.yml/badge.svg)](https://github.com/qiuye97/YeTerm/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-lightgrey)
 ![Architecture](https://img.shields.io/badge/arch-arm64%20native-success)

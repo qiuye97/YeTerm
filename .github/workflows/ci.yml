@@ -1,15 +1,22 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# 持续集成:每次 push / PR,在 GitHub 的干净 Mac 上从零编译一遍并跑内核冒烟。
+# 持续集成:每次 push / PR,在 GitHub 的干净 Mac 上从零编译一遍并跑自测。
 #
-# 为什么只做这两件事(而不是把本机那套自测全搬上来):
+# 为什么只做这三件事(而不是把本机那套自测全搬上来):
 #   本项目的自测体系里有大量**逐像素比对**(--render-demo --tolerance 0)和
 #   **GUI 探针**(实例化 NSWindow、合成真实键盘事件)。CI 跑在虚拟机里,
 #   Metal 走虚拟化 GPU、没有常规的图形会话 —— 那些断言在这里不一定稳,
 #   一旦误报红,CI 就从「有用的信号」变成「一直红的噪音」,反而没人看了。
-#   所以这里只留**一定可靠**的两条,它们恰好覆盖了最常见的翻车:
-#     ① swift build   —— 抓「只有作者机器上能编译」(比如漏 git add 了新文件)
-#     ② --smoke-term  —— 抓终端内核本身坏掉(无 GUI、无 GPU,纯逻辑)
-#   完整回归仍然在本机跑:bash scripts/verify_m0.sh(末行 M0-GREEN)。
+#   所以这里只留**实测在 CI 上稳定**的三条:
+#     ① swift build      —— 抓「只有作者机器上能编译」(比如漏 git add 了新文件)
+#     ② --smoke-term     —— 终端内核(无 GUI、无 GPU,纯逻辑)
+#     ③ --probe-settings —— 73 条断言:配置库 / 预设完整性 / i18n 译文覆盖与
+#                           占位符一致性 / 设置页逐页渲染非空白。
+#                           首次实测确认:GitHub 的 macOS runner **有图形会话**,
+#                           NSWindow 与 SwiftUI 渲染都正常,所以这条要求必须通过
+#                           (不做「起不来就跳过」的软处理 —— 那会在它真的坏掉时
+#                            绿着糊弄过去)。
+#   仍然只在本机跑的:verify_m0.sh 的**逐像素比对**(--tolerance 0)与 auto-drive
+#   的合成键盘事件 —— 前者依赖 GPU 结果逐位一致,CI 是虚拟化 GPU,没验证过。
 #
 # runner 用 macos-26:它是 arm64(与本项目的 Apple Silicon 目标一致),
 # 且预装 Xcode 26.x —— 本项目需要 SDK ≥ 26(设置页用了 macOS 26 的新设计 API,
@@ -30,11 +37,11 @@ concurrency:
 
 jobs:
   build:
-    name: 构建 + 内核冒烟
+    name: 构建 + 自测
     runs-on: macos-26
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 记录工具链版本(排查环境差异时第一个要看的)
         run: |
@@ -51,14 +58,7 @@ jobs:
           swift run YeTerm --smoke-term | tee /tmp/smoke.log
           grep -q "SMOKE-PASS" /tmp/smoke.log
 
-      - name: 多语言译文覆盖率(缺翻译不会崩,只会静悄悄回落中文 —— 必须有断言盯着)
+      - name: 设置探针(73 条断言:配置库 / 预设完整性 / i18n 覆盖 / 逐页渲染非空白)
         run: |
-          swift run YeTerm --probe-settings /tmp/probe 2>&1 | tee /tmp/probe.log || true
-          # 设置探针整体依赖 GUI,这里只取其中与 i18n 相关的几条结论;
-          # 若探针在无图形会话下起不来,不让它把整个 CI 拖红。
-          if grep -q "英文译文表载入" /tmp/probe.log; then
-            grep -q "✗" /tmp/probe.log && { echo "探针有失败项"; exit 1; }
-            echo "i18n 断言通过"
-          else
-            echo "::notice::设置探针在此环境下未能启动(需要图形会话),已跳过 i18n 检查"
-          fi
+          swift run YeTerm --probe-settings /tmp/probe 2>&1 | tee /tmp/probe.log
+          grep -q "SETTINGS-PROBE-PASS" /tmp/probe.log

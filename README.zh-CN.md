@@ -4,6 +4,7 @@
 
 **一个原生 Apple Silicon 的 macOS 终端，长得像显像管，而且能在上面打中文。**
 
+[![CI](https://github.com/qiuye97/YeTerm/actions/workflows/ci.yml/badge.svg)](https://github.com/qiuye97/YeTerm/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/macOS-15%2B-lightgrey)
 ![Architecture](https://img.shields.io/badge/arch-arm64%20native-success)
