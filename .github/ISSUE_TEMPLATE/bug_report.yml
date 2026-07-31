@@ -1,0 +1,79 @@
+name: Bug report / 问题报告
+description: Something doesn't work, or looks wrong. 有东西坏了，或者观感不对。
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. English or 中文, whichever you prefer.
+        感谢反馈，中英文都可以。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / 发生了什么
+      description: What you expected, and what you got instead. 你预期的结果，和实际的结果。
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce / 怎么复现
+      placeholder: |
+        1. Open Settings → …
+        2. Set … to …
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot / 截图
+      description: |
+        For anything visual, a screenshot is worth far more than a description —
+        this is a project about how things look.
+        ⌘⇧S exports a full-frame PNG including the bezel to your Desktop.
+
+        观感类问题请务必附图 —— 这个项目就是关于「长什么样」的。
+        ⌘⇧S 可以把含机壳的整幅画面导出到桌面。
+
+  - type: input
+    id: version
+    attributes:
+      label: YeTerm version / 版本
+      description: Settings → About, or `git rev-parse --short HEAD` if you built from source.
+      placeholder: "1.5.0"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip / 系统版本与芯片
+      placeholder: "macOS 15.5, M2 Pro"
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Preset / relevant settings / 预设与相关设置
+      description: |
+        Which preset, which font, and anything you changed from its defaults.
+        If a theme file is involved, paste its JSON.
+
+        用的哪套预设、哪个字体、以及你改过的参数。涉及主题文件的话请贴 JSON。
+      render: json
+
+  - type: textarea
+    id: probe
+    attributes:
+      label: Self-test output / 自测输出
+      description: |
+        Optional but very helpful — if you can build from source, the output of:
+        `bash scripts/verify_m0.sh` or `swift run YeTerm --probe-settings /tmp/p`
+
+        可选但很有帮助 —— 如果你能自行构建的话。
+      render: shell

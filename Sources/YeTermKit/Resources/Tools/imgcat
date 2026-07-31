@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# imgcat —— 在 YeTerm(或任何支持 iTerm2 inline images 协议的终端)里直接显示图片。
+#
+# 本脚本由 YeTerm 项目自行编写,随 YeTerm 一同以 GPL-3.0-or-later 分发。
+# (留档:v1.2~v1.4 内置的是 iTerm2 官方 imgcat 脚本,那份是 GPL-2.0;
+#  开源前为避免 GPL-2 / GPL-3 的分发兼容性问题,改成这份等价实现。
+#  协议本身不受版权保护,见 https://iterm2.com/documentation-images.html)
+#
+# 协议:OSC 1337 ; File = <键=值;...> : <base64 图片数据> BEL
+#
+# 用法:
+#   imgcat 图片.png [更多图片...]
+#   imgcat -W 40 -H 12 图.png      # 指定宽高(单位:字符格)
+#   cat 图.png | imgcat            # 从标准输入读
+set -o pipefail
+
+PROGNAME=${0##*/}
+
+usage() {
+    cat >&2 <<EOF
+
+用法: $PROGNAME [选项] 文件...
+      cat 图片 | $PROGNAME [选项]
+
+在终端里直接显示图片(iTerm2 Inline Images 协议)。
+
+选项:
+  -W, --width  <n>   显示宽度。n = 字符格数;也可写 100%(占会话宽度百分比)、
+                     200px(像素)、auto(按图片自身尺寸)
+  -H, --height <n>   显示高度,写法同上
+  -r, --preserve-aspect-ratio   保持宽高比(默认)
+  -s, --stretch                 拉伸填满指定宽高(与 -r 相反)
+  -h, --help                    显示本帮助
+
+不指定宽高时由终端自动选择合适尺寸。
+
+示例:
+  $ $PROGNAME photo.png
+  $ $PROGNAME -W 40 -H 12 photo.png
+  $ cat graph.png | $PROGNAME -W 100%
+
+在 YeTerm 里图片会画进内容层、**过整条 CRT 管线** —— 扫描线/辉光/弧度照吃。
+单色主题(chromaColor=0)下图片会被荧光染色成主题色,这是特性:老单色 CRT 就该这样。
+想看全彩图请用 chroma 全开的主题(Boring / Dracula / Solarized 等)。
+
+EOF
+}
+
+# tmux/screen 要求把不认识的 OSC 序列包进 DCS passthrough,且内部 ESC 要翻倍。
+# 用 TERM 而不是 TMUX 判断 —— TERM 会跟着 ssh 传到对端。
+osc_start() {
+    if [[ $TERM == screen* || $TERM == tmux* ]]; then
+        printf '\033Ptmux;\033\033]'
+    else
+        printf '\033]'
+    fi
+}
+
+osc_end() {
+    if [[ $TERM == screen* || $TERM == tmux* ]]; then
+        printf '\a\033\\'
+    else
+        printf '\a'
+    fi
+}
+
+# base64 不折行:GNU coreutils 要 -w0,BSD/macOS 默认就不折行。
+b64() {
+    if base64 --help 2>&1 | grep -q -- '-w'; then
+        base64 -w0
+    else
+        base64
+    fi
+}
+
+# 图片参数串(两种发送方式共用)
+img_args() {
+    local name=$1 size=$2
+    printf 'inline=1'
+    [[ -n $name ]] && printf ';name=%s' "$(printf '%s' "$name" | b64)"
+    [[ -n $size ]] && printf ';size=%s' "$size"
+    [[ -n $WIDTH ]] && printf ';width=%s' "$WIDTH"
+    [[ -n $HEIGHT ]] && printf ';height=%s' "$HEIGHT"
+    printf ';preserveAspectRatio=%s' "$PRESERVE"
+}
+
+# 发一张图。$1 = 文件名(可空),$2 = 字节数(可空),图片二进制从标准输入进。
+#
+# 两条路径(这是本脚本唯一值得注意的地方):
+#   · 非 tmux —— **单条大序列**,一次 printf 发完,大图秒出。
+#   · tmux/screen —— tmux 的 DCS 穿透对单条序列长度有限制,大图会被它丢掉,
+#     所以改用 iTerm2 的 multipart 协议(MultipartFile / FilePart×N / FileEnd)。
+#     分段本身很慢(上万条序列),所以**只在 tmux 里用**,且用一次 awk 把所有
+#     分段拼成一整块再 printf —— 别写成 shell 逐条 printf 的循环,那会慢到没法用。
+emit() {
+    local name=$1 size=$2 data
+    data=$(b64) || return 1
+    [[ -z $data ]] && { echo "$PROGNAME: 空输入" >&2; return 1; }
+
+    if [[ $TERM == screen* || $TERM == tmux* ]]; then
+        local s e
+        s=$(osc_start)
+        e=$(osc_end)
+        osc_start; printf '1337;MultipartFile=%s' "$(img_args "$name" "$size")"; osc_end
+        # 注意:必须走 ENVIRON 传转义串,不能用 awk -v ——
+        # -v 会对值再做一次反斜杠转义处理,tmux 结束符尾部的 `\` 会被吃掉。
+        printf '%s' "$data" | fold -w 200 \
+            | YT_S="$s" YT_E="$e" awk '{printf "%s1337;FilePart=%s%s", ENVIRON["YT_S"], $0, ENVIRON["YT_E"]}'
+        osc_start; printf '1337;FileEnd'; osc_end
+    else
+        osc_start
+        printf '1337;File=%s' "$(img_args "$name" "$size")"
+        printf ':%s' "$data"
+        osc_end
+    fi
+    printf '\n'
+}
+
+WIDTH=""
+HEIGHT=""
+PRESERVE=1
+files=()
+
+while (( $# )); do
+    case $1 in
+        -W|--width)  [[ $# -ge 2 ]] || { echo "$PROGNAME: -W 缺参数" >&2; exit 2; }; WIDTH=$2; shift 2 ;;
+        -H|--height) [[ $# -ge 2 ]] || { echo "$PROGNAME: -H 缺参数" >&2; exit 2; }; HEIGHT=$2; shift 2 ;;
+        -r|--preserve-aspect-ratio) PRESERVE=1; shift ;;
+        -s|--stretch)               PRESERVE=0; shift ;;
+        -h|--help)   usage; exit 0 ;;
+        --)          shift; files+=("$@"); break ;;
+        -*)          echo "$PROGNAME: 未知选项 $1" >&2; usage; exit 2 ;;
+        *)           files+=("$1"); shift ;;
+    esac
+done
+
+# 无文件参数:从标准输入读(管道用法);标准输入是终端则说明用户没给图,打帮助。
+if (( ${#files[@]} == 0 )); then
+    if [[ -t 0 ]]; then
+        usage
+        exit 2
+    fi
+    emit "" "" || exit 1
+    exit 0
+fi
+
+status=0
+for f in "${files[@]}"; do
+    if [[ ! -r $f ]]; then
+        echo "$PROGNAME: 读不到文件: $f" >&2
+        status=1
+        continue
+    fi
+    size=$(wc -c < "$f" | tr -d ' ')
+    emit "${f##*/}" "$size" < "$f" || status=1
+done
+exit $status

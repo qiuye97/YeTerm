@@ -1,0 +1,66 @@
+name: Licensing / attribution concern / 许可或署名问题
+description: This project uses something of yours, or gets an attribution wrong. 这个项目用了你的东西，或者署名有误。
+title: "[Licensing] "
+labels: ["licensing", "priority"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This gets handled before anything else.**
+
+        This is the author's first open-source project. Every bundled font's license
+        was checked individually against upstream terms, and one font was removed before
+        release because its license doesn't permit redistribution — but mistakes are
+        entirely possible.
+
+        **If this project infringes your work, it comes down. No argument, no delay.**
+        You do not need to be polite about it, and you do not need to prove anything
+        beyond identifying what's yours.
+
+        ---
+
+        **这类问题优先于其它一切处理。**
+
+        这是作者的第一个开源项目。每款内置字体的许可都逐个对照上游条款核实过，
+        其中一款因为不允许再分发已在开源前移除 —— 但仍完全可能有疏漏。
+
+        **如果这个项目侵犯了你的作品，它会被下架。不争辩，不拖延。**
+        你不需要客气，也不需要证明什么，指出是你的东西即可。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What of yours is being used / 用到了你的什么
+      description: |
+        Code, a font, a texture, a name, a trademark — whatever it is.
+        A link to the original helps but isn't required.
+
+        代码、字体、纹理、名称、商标 —— 什么都可以。
+        附上原作链接会有帮助，但不是必需的。
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Where in this project / 在这个项目的什么位置
+      description: A file path, a screenshot, or just a description. 文件路径、截图，或者描述一下也行。
+
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: What would resolve this / 你希望怎么处理
+      options:
+        - Remove it entirely / 完全移除
+        - Fix the attribution / 修正署名
+        - Change the license terms it's listed under / 更正许可标注
+        - I want to discuss it first / 想先讨论
+        - Other / 其它
+    validations:
+      required: true
+
+  - type: input
+    id: contact
+    attributes:
+      label: Contact (optional) / 联系方式（可选）
+      description: If you'd rather not discuss this in a public issue. 如果你不想在公开 issue 里讨论。

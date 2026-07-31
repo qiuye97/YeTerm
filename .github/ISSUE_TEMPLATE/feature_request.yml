@@ -1,0 +1,48 @@
+name: Feature request / 功能建议
+description: An idea for something YeTerm should do. 想让 YeTerm 做点什么。
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing: this is a personal project the author uses daily, so the bar
+        is "would this make it better for someone who wants a CRT terminal", not
+        feature parity with anything.
+
+        A few things have already been decided against and won't come back — bezel
+        LEDs, and the 1.2-era `bloomAlpha` bloom compositing. Both were built, looked
+        at, and rejected.
+
+        动手前请知悉：这是作者自用的项目，取舍标准是「这会让一个想要 CRT 终端的人
+        用得更好吗」，而不是和谁对齐功能表。有几项已经明确不做：机壳 LED、
+        1.2 世代的 `bloomAlpha` 辉光合成 —— 都实现过、看过效果、决定不要。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do / 你想解决什么问题
+      description: |
+        Describe the situation rather than the solution — it's often possible already,
+        or there's a better fit.
+
+        请描述场景而不是方案 —— 有时候现在就能做到，或者有更合适的做法。
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind / 你设想的做法
+
+  - type: textarea
+    id: prior
+    attributes:
+      label: Prior art / 参考
+      description: |
+        Does a real CRT or an old terminal do this? A photo or a datasheet is the
+        strongest possible argument here — this project has repeatedly discovered
+        that what seems physically correct and what a real screen actually does are
+        different things.
+
+        真显像管或者老终端是这样的吗？照片或者规格书是这里最有力的论据 ——
+        这个项目反复发现「看起来物理正确」和「真屏幕实际表现」是两回事。

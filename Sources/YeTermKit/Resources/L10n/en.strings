@@ -1,0 +1,486 @@
+// YeTerm —— English translations
+//
+// Format:  "<Chinese source>" = "<English>";
+// The Chinese text IS the key. Anything missing here simply falls back to
+// Chinese, so a partial translation is always safe to ship.
+//
+// Placeholders (%@, %d, %1$@ …) must be preserved exactly, including their
+// order numbers — those are how the value gets substituted back in.
+//
+// To add another language: copy this file to <code>.strings (e.g. ja.strings),
+// translate the right-hand side, and add the case to AppLanguage in
+// Sources/YeTermKit/Config/Localization.swift.
+
+// ── Menu bar ────────────────────────────────────────────────────────────────
+"关于 YeTerm" = "About YeTerm";
+"设置…" = "Settings…";
+"退出 YeTerm" = "Quit YeTerm";
+"文件" = "File";
+"新建窗口" = "New Window";
+"新建标签页" = "New Tab";
+"导出 CRT 截图" = "Export CRT Screenshot";
+"录制 GIF(开始/停止)" = "Record GIF (Start/Stop)";
+"关闭窗口" = "Close Window";
+"编辑" = "Edit";
+"复制" = "Copy";
+"粘贴" = "Paste";
+"全选" = "Select All";
+"查找…" = "Find…";
+"查找下一个" = "Find Next";
+"查找上一个" = "Find Previous";
+"主题" = "Themes";
+"分屏" = "Split";
+"向右分屏" = "Split Right";
+"向下分屏" = "Split Down";
+"下一个分屏" = "Next Pane";
+"命令" = "Commands";
+"上一条命令" = "Previous Command";
+"下一条命令" = "Next Command";
+"复制上条命令输出" = "Copy Last Command Output";
+"安装 Shell 集成…" = "Install Shell Integration…";
+"显示" = "View";
+"开关 CRT 特效" = "Toggle CRT Effects";
+"消磁" = "Degauss";
+"OSD 调节面板" = "OSD Panel";
+"服务器" = "Servers";
+"窗口" = "Window";
+"最小化" = "Minimize";
+"显示下一个标签页" = "Show Next Tab";
+"显示上一个标签页" = "Show Previous Tab";
+"显示所有标签页" = "Show All Tabs";
+"将标签页移到新窗口" = "Move Tab to New Window";
+"合并所有窗口" = "Merge All Windows";
+"前置全部窗口" = "Bring All to Front";
+"系统预设" = "Built-in Presets";
+"我的配置" = "My Profiles";
+"(还没有配置服务器)" = "(No servers configured)";
+"服务器选单" = "Server Picker";
+"管理服务器…" = "Manage Servers…";
+"检查本地网络权限…" = "Check Local Network Permission…";
+
+// ── Alerts & common buttons ─────────────────────────────────────────────────
+"安装失败" = "Installation Failed";
+"本地网络权限" = "Local Network Permission";
+"打开设置" = "Open Settings";
+"好" = "OK";
+"取消" = "Cancel";
+"创建" = "Create";
+"删除" = "Delete";
+"保存" = "Save";
+"安装" = "Install";
+"清除" = "Clear";
+"稍后" = "Later";
+"完成" = "Done";
+"名称" = "Name";
+"可选" = "Optional";
+"无" = "None";
+"其它" = "Other";
+
+// ── Shell integration ───────────────────────────────────────────────────────
+"Shell 集成已是最新" = "Shell Integration Is Up to Date";
+"~/.zshrc 早已接线,集成脚本已刷新到最新版。新开的终端立即生效。" = "~/.zshrc is already hooked up; the integration script has been refreshed to the latest version. New terminals pick it up immediately.";
+"Shell 集成安装完成" = "Shell Integration Installed";
+"已在 ~/.zshrc 末尾追加一行接线(只在 YeTerm 里生效,不影响其它终端)。新开的终端窗口即可使用 ⌘↑/⌘↓ 跳命令、⇧⌘C 复制上条输出。" = "A single hook line was appended to ~/.zshrc (it only activates inside YeTerm and won't affect other terminals). New terminal windows can use ⌘↑/⌘↓ to jump between commands and ⇧⌘C to copy the last output.";
+"Shell 集成" = "Shell Integration";
+"已安装" = "Installed";
+"未安装" = "Not installed";
+"刷新脚本" = "Refresh Script";
+"一键安装" = "Install";
+"重新安装" = "Reinstall";
+"安装中…" = "Installing…";
+"一键安装…" = "Install…";
+"完成。新开的窗口 / 标签自动生效;已开的会话在里面执行一次 source ~/.zshrc 即可升级(或关掉重开)。" = "Done. New windows and tabs pick it up automatically; for sessions already open, run source ~/.zshrc inside them to upgrade (or just close and reopen).";
+"往 ~/.zshrc 末尾追加一行接线,让 zsh 报告命令边界(只在 YeTerm 里生效,不影响其它终端)。⌘↑/⌘↓ 跳命令、⇧⌘C 复制上条输出、失败命令红条、命令耗时统计都靠它。" = "Appends one hook line to ~/.zshrc so zsh reports command boundaries (active only inside YeTerm, other terminals unaffected). ⌘↑/⌘↓ command jumping, ⇧⌘C copy-last-output, red bars on failed commands and command timing all depend on it.";
+"集成脚本写入失败:%@" = "Couldn't write the integration script: %@";
+"~/.zshrc 写入失败:%@" = "Couldn't write to ~/.zshrc: %@";
+
+// ── imgcat / oh-my-zsh ──────────────────────────────────────────────────────
+"imgcat 看图工具" = "imgcat Image Viewer";
+"完成。新开的终端窗口里 imgcat 图片.png 即可。" = "Done. In a new terminal window just run: imgcat photo.png";
+"把 imgcat 脚本(app 内置,无需联网)装到 ~/.local/bin 并接好 PATH。之后终端里 imgcat 任意图片,直接在 CRT 荧光屏上看图——扫描线、辉光、弧度照常生效。" = "Installs the bundled imgcat script (no network needed) into ~/.local/bin and wires up PATH. After that, imgcat any image to view it right on the CRT phosphor screen — scanlines, bloom and curvature all apply.";
+"内置 imgcat 资源缺失(打包问题)" = "The bundled imgcat resource is missing (packaging problem)";
+"imgcat 安装失败:%@" = "imgcat installation failed: %@";
+"imgcat 已装好,但 ~/.zshrc PATH 接线失败:%@" = "imgcat installed, but wiring PATH into ~/.zshrc failed: %@";
+"安装 oh-my-zsh?" = "Install oh-my-zsh?";
+"将执行 oh-my-zsh 官方安装脚本(需要网络)。安装为静默模式:不改默认 shell、不自动启动 zsh、不改动你现有的 ~/.zshrc(仅追加一段接线)。" = "This runs the official oh-my-zsh installer (network required). It installs in unattended mode: your default shell is not changed, zsh is not auto-started, and your existing ~/.zshrc is left intact (only a hook block is appended).";
+"正在下载安装 oh-my-zsh…" = "Downloading and installing oh-my-zsh…";
+"安装完成。新开的终端窗口生效;上面选择 omz 主题即可切换。" = "Installed. Takes effect in new terminal windows; pick an omz theme above to switch.";
+"未安装(omz 主题需要它;内置复古提示符不需要)" = "Not installed (needed for omz themes; the built-in retro prompts don't need it)";
+"安装脚本退出码 %d" = "Installer exited with code %d";
+"(请检查网络)" = " (check your network connection)";
+"无法启动安装进程:%@" = "Couldn't start the installer process: %@";
+"oh-my-zsh 已装好,但 ~/.zshrc 接线失败:%@" = "oh-my-zsh installed, but wiring ~/.zshrc failed: %@";
+
+// ── Paste guard / server picker (OSD canvases) ──────────────────────────────
+"粘贴确认 -- %1$d 行 / %2$d 字符" = "PASTE -- %1$d lines / %2$d chars";
+"...(还有 %d 行)" = "...(%d more lines)";
+"ENTER 粘贴          ESC 取消" = "ENTER paste          ESC cancel";
+"第 %1$d/%2$d 页 " = "page %1$d/%2$d ";
+"设置 > 远程主机 里添加" = "Add one in Settings > Remote Hosts";
+"ESC 关闭" = "ESC close";
+"ENTER 连接  SHIFT+ENTER 分屏连  ESC" = "ENTER connect  SHIFT+ENTER split  ESC";
+
+// ── Settings: window & CRT master switch ────────────────────────────────────
+"YeTerm 设置" = "YeTerm Settings";
+"CRT 复古特效" = "Retro CRT Effects";
+"快捷键 ⌘E" = "Shortcut ⌘E";
+"「%@」是真实设备还原主题,CRT 特效不可关闭 —— 想要素净观感请选「经典配色」组主题(它们关掉特效后仍保留各自配色),或自建配置。" = "“%@” recreates a real piece of hardware, so its CRT effects can't be turned off. For a plain look, pick a theme from the Classic Color Schemes group (they keep their palette with effects off) or create your own profile.";
+"当前:复古显像管模式" = "Currently: retro CRT mode";
+"当前:普通终端模式" = "Currently: plain terminal mode";
+"画面按老 CRT 显示器拟真:荧光染色、扫描线、屏幕弧度、辉光、雪花噪点、磷光余辉、机壳边框全套生效。左侧的「预设 / 颜色 / 特效 / 屏幕」分类都是这套观感的调节旋钮。" = "The picture is simulated as an old CRT monitor: phosphor tinting, scanlines, screen curvature, bloom, static noise, phosphor persistence and the bezel are all active. The Presets / Colors / Effects / Screen sections on the left are the knobs for this look.";
+"画面是干净的现代终端:无弧度、无扫描线、无机壳,文字颜色精确直出。左侧保留「预设 / 字体 / 颜色 / 光标 / 终端」等通用设置;颜色系统与 CRT 模式相互独立(仿 macOS 自带终端:文字色、背景色、ANSI 16 色逐一可调)。CRT 开关会跟随预设:把当前普通终端状态「复制当前」存成配置,以后一点即回;点任何内置 CRT 预设则切回复古模式。" = "A clean modern terminal: no curvature, no scanlines, no bezel, and text colors rendered exactly as specified. The Presets / Fonts / Colors / Cursor / Terminal sections remain available. The color system here is completely independent from CRT mode (like Terminal.app: text color, background color and all 16 ANSI colors are individually adjustable). The CRT switch travels with presets: save the current plain-mode state with “Duplicate Current” and one click brings it back; clicking any built-in CRT preset switches back to retro mode.";
+
+// ── Settings: colors ────────────────────────────────────────────────────────
+"颜色" = "Colors";
+"黑" = "Black";
+"红" = "Red";
+"绿" = "Green";
+"黄" = "Yellow";
+"蓝" = "Blue";
+"品红" = "Magenta";
+"青" = "Cyan";
+"白" = "White";
+"普通终端模式配色(与 CRT 模式互不影响)" = "Plain terminal mode palette (independent from CRT mode)";
+"文字颜色" = "Text Color";
+"背景色" = "Background";
+"ANSI 颜色" = "ANSI Colors";
+"还原默认" = "Restore Defaults";
+"普通" = "Normal";
+"明亮" = "Bright";
+"前景色(荧光)" = "Foreground (phosphor)";
+"亮度" = "Brightness";
+"对比度" = "Contrast";
+"饱和度" = "Saturation";
+"色彩浓度" = "Chroma";
+"色彩浓度 = 0 时为纯单色荧光屏;= 1 时保留终端原色。" = "At 0 the screen is a pure monochrome phosphor; at 1 the terminal's own colors are preserved.";
+"还原专属调色板" = "Restore Signature Palette";
+"当前:crterm 专属调色板(亮青=奶油白等荧光考据色)。修改任一色即成为自定义配色;色彩浓度低时 ANSI 色会被荧光染色。" = "Currently: the cool-retro-term signature palette (researched phosphor colors, e.g. bright cyan is a cream white). Changing any color makes it a custom palette; at low chroma the ANSI colors get tinted by the phosphor.";
+"当前:自定义 ANSI 表(经典配色主题自带官方色)。「还原专属调色板」回到 crterm 荧光考据色。" = "Currently: a custom ANSI table (classic color themes ship their official palettes). “Restore Signature Palette” goes back to the researched phosphor colors.";
+
+// ── Settings: background image (plain mode) ─────────────────────────────────
+"背景图片" = "Background Image";
+"选择图片…" = "Choose Image…";
+"选择普通模式的终端背景图片" = "Choose a background image for plain terminal mode";
+"未设置 —— 背景为上方的纯背景色。" = "Not set — the background is the solid color above.";
+"无变化" = "As-is";
+"毛玻璃" = "Frosted glass";
+"像素风" = "Pixelated";
+"暗化" = "Darkened";
+"黑白胶片" = "B&W film";
+"模糊强度" = "Blur Strength";
+"调色板" = "Palette";
+"PICO-8 鲜艳" = "PICO-8 vivid";
+"DB16 沉稳" = "DB16 muted";
+"GameBoy 绿" = "Game Boy green";
+"原色" = "Original";
+"特效在选图时一次性处理成缓存,不增加每帧渲染负担;暗化 / 黑白胶片会把图片压暗,文字浮在上面更好读。" = "The effect is baked once when you pick the image and cached, so it costs nothing per frame. Darkened and B&W film dim the picture so text reads better on top of it.";
+
+// ── Settings: presets ───────────────────────────────────────────────────────
+"预设" = "Presets";
+"新建" = "New";
+"%@ 副本" = "%@ copy";
+"复制当前" = "Duplicate Current";
+"系统预设不可删除;修改任意参数后可随时「还原默认」。悬停或选中查看每套的出处简介。" = "Built-in presets can't be deleted; after changing any parameter you can always “Restore Defaults”. Hover or select one to read where it comes from.";
+"还没有自定义配置 —— 选中任意系统预设调整后,点「复制当前」保存为你自己的。" = "No custom profiles yet — tweak any built-in preset, then hit “Duplicate Current” to save it as your own.";
+"配置名称" = "Profile Name";
+"名称已存在(系统预设与用户配置不可重名)" = "That name is taken (built-in presets and your profiles share one namespace)";
+"删除配置「%@」?" = "Delete profile “%@”?";
+"经典 CRT" = "Classic CRTs";
+"经典配色" = "Classic Color Schemes";
+"MS-DOS 蓝" = "MS-DOS Blue";
+
+// ── Settings: fonts ─────────────────────────────────────────────────────────
+"字体" = "Fonts";
+"字号" = "Size";
+"字宽" = "Width";
+"模糊搜索字体(如 mpl → Maple Mono)" = "Fuzzy-search fonts (e.g. mpl → Maple Mono)";
+"复古字体(内置)" = "Retro fonts (bundled)";
+"图标字体(%d)— 内置 Powerline/Nerd 图标,p10k 主题图标全" = "Icon fonts (%d) — include Powerline/Nerd glyphs, everything p10k themes need";
+"系统字体(%d)" = "System fonts (%d)";
+"等宽" = "mono";
+"方舟像素 (中文)" = "Ark Pixel (CJK)";
+
+// ── Settings: screen ────────────────────────────────────────────────────────
+"屏幕" = "Screen";
+"光栅化" = "Rasterization";
+"扫描线" = "Scanlines";
+"像素" = "Pixel grid";
+"子像素" = "Subpixel";
+"屏幕弧度" = "Screen Curvature";
+"机壳边框" = "Bezel";
+"四角暗角、屏内边缘阴影与机壳反射" = "Corner vignetting, inner edge shadow and case reflections";
+"分屏分割线" = "Split Divider";
+"实线" = "Solid";
+"虚线段" = "Dashed";
+"点线" = "Dotted";
+"刷新率" = "Frame Rate";
+"30(省电)" = "30 (power saving)";
+"跟随显示器" = "Match display";
+"上限由显示器决定:60Hz 屏上选 120 也只能跑 60。低电量模式自动降为 30" = "Capped by your display: picking 120 on a 60 Hz screen still runs at 60. Low Power Mode automatically drops to 30.";
+"留白" = "Margin";
+"窗口不透明度" = "Window Opacity";
+
+// ── Settings: effects ───────────────────────────────────────────────────────
+"特效" = "Effects";
+"开关即启用/禁用;重新启用会恢复上次的强度" = "The toggle enables/disables an effect; re-enabling restores the strength you last used";
+"CRT 特效" = "CRT Effects";
+"总开关(⌘E)。关闭 = 当成普通终端用:原生文字渲染,仅字体与前景/背景色生效" = "Master switch (⌘E). Off = use it as a plain terminal: native text rendering, with only the font and foreground/background colors applied.";
+"文字发光" = "Text Glow";
+"拆成两半独立调:**白热化** = 笔画自己被打得过狠而发白(就地,不影响周围);**辉光** = 光散射出去把周围照亮(一圈磷光色的晕)。想要「中心发白」调上面那个,不必再把辉光开到最大。" = "Two independent halves: **Overdrive** = the stroke itself is driven so hard it goes white (in place, doesn't touch its surroundings); **Bloom** = light scattering outward to light up the area around it (a halo in the phosphor color). For a white-hot core, use the first one — you no longer need to crank bloom to the maximum.";
+"白热化" = "Overdrive";
+"发白起点" = "Overdrive Knee";
+"从多亮开始发白。调低=连中等亮度的笔画也泛白;调高=只有最亮的芯部发白、边缘保持磷光色。" = "How bright a pixel must be before it starts whitening. Lower = even mid-bright strokes wash out; higher = only the brightest core goes white while the edges keep the phosphor color.";
+"辉光" = "Bloom";
+"辉光风格" = "Bloom Style";
+"柔雾" = "Soft haze";
+"光晕" = "Halation";
+"柔雾=能量守恒的模糊(原版,更接近实测);光晕=亮核峰值不衰减" = "Soft haze = energy-preserving blur (the original behavior, closer to measurements); Halation = the bright core keeps its peak brightness";
+"光晕形状" = "Bloom Shape";
+"单层" = "Single";
+"紧核+长尾" = "Tight core + long tail";
+"真 CRT 的光晕衰减比指数快、比高斯慢(玻璃多次散射 + 眼内杂散光)。紧核+长尾=光更贴笔画、远处更干净" = "A real CRT's halo falls off faster than an exponential but slower than a Gaussian (multiple scattering in the glass plus veiling glare in the eye). Tight core + long tail hugs the strokes more closely and keeps distant areas cleaner.";
+"余辉" = "Persistence";
+"雪花噪点" = "Static Noise";
+"画面闪烁" = "Flicker";
+"发光模型" = "Emission Model";
+"颜料" = "Pigment";
+"自发光" = "Emissive";
+"自发光:叠加的光不砍平,溢出按色相等比压缩 —— 亮处保持纯磷光色、不发白。注意:实测真 CRT 照片的亮处**是会发白的**(最亮处饱和度只剩 0.11),所以这一档偏「理想磷光体」而非「照片写实」。" = "Emissive: added light isn't clipped; overflow is scaled down while preserving hue, so highlights keep a pure phosphor color instead of washing out. Note: in actual photographs of real CRTs highlights **do** wash out (saturation drops to 0.11 at the brightest point), so this setting is “idealized phosphor” rather than photo-realistic.";
+"颜料(推荐):cool-retro-term 原版语义 —— 亮处逐通道饱和后褪色发白。与真 CRT 照片的实测走向一致(饱和度随亮度先升后降),笔画中心高亮偏白、边缘渐变回绿。" = "Pigment (recommended): the original cool-retro-term behavior — highlights saturate per channel and then wash toward white. This matches what real CRT photos show (saturation rises with brightness, then falls), giving strokes a white-hot center that fades back to green at the edges.";
+"水平抖动" = "Horizontal Sync";
+"抖动" = "Jitter";
+"移动亮线" = "Glowing Line";
+"RGB 色差" = "RGB Shift";
+"环境光" = "Ambient Light";
+"开机动画" = "Power-On Animation";
+"新窗口播放显像管通电特效:亮点 → 亮线 → 画面展开" = "New windows play a CRT power-up effect: dot → line → full picture";
+"慢" = "Slow";
+"标准" = "Normal";
+"快" = "Fast";
+"极速" = "Instant";
+"开机自检" = "Power-On Self Test";
+"启动首窗滚一段 BIOS 风自检(真实芯片/内存/磁盘信息),约 2 秒" = "The first window on launch scrolls a BIOS-style POST (with your real chip/memory/disk info), about 2 seconds";
+"换台效果" = "Channel Switch";
+"切主题瞬间画面收缩成亮线+雪花一闪,再以新配色亮起(老电视换台)" = "Switching themes collapses the picture to a bright line with a flash of static, then it lights up in the new colors (like changing channels on an old TV)";
+"后台动画" = "Animate in Background";
+"切到其他 App 时特效照常播放(拟真);关闭 = 失活即暂停,最省电" = "Keep effects animating when you switch to another app (more realistic); off = pause when inactive, saving the most power";
+"会话恢复" = "Restore Session";
+"启动时还原上次退出的窗口位置、分屏布局和各分屏的工作目录" = "On launch, restore the window positions, split layouts and each pane's working directory from last time";
+
+// ── Settings: terminal ──────────────────────────────────────────────────────
+"终端" = "Terminal";
+"界面语言" = "Language";
+"切换后立刻生效,不用重启。终端里跑的程序输出什么语言,跟这个设置无关。" = "Takes effect immediately, no restart needed. This only changes YeTerm's own interface — it has nothing to do with what language the programs running inside the terminal print.";
+"提示符主题" = "Prompt Theme";
+"不干预(用你自己的 p10k / starship)" = "Leave alone (keep your own p10k / starship)";
+"复古 ASCII" = "Retro ASCII";
+"DOS 风" = "DOS style";
+"C64 风" = "C64 style";
+"极简" = "Minimal";
+"omz · robbyrussell(默认)" = "omz · robbyrussell (default)";
+"omz · agnoster(需 Powerline 字形)" = "omz · agnoster (needs Powerline glyphs)";
+"仅在 YeTerm 里生效(不改 ~/.zshrc 的 ZSH_THEME,其它终端照旧);选择后立即换提示符,不打断正在输入的内容。需要新版 Shell 集成脚本:刷新脚本之前开的老会话收不到热切信号(里面执行一次 source ~/.zshrc 即可升级,或关掉重开),刷新后新开的会话永久免此步骤。切换预设主题会带上匹配的提示符:复古设备主题配纯 ASCII,点阵字体不再出豆腐块。" = "Applies inside YeTerm only (your ~/.zshrc ZSH_THEME is untouched, other terminals are unaffected). The prompt changes immediately without disturbing what you're typing. Requires the current Shell Integration script: sessions opened before you refresh it won't receive the live-switch signal (run source ~/.zshrc inside them to upgrade, or just reopen); sessions opened after a refresh never need this step. Switching presets also brings a matching prompt: hardware-recreation themes get pure ASCII so bitmap fonts stop showing tofu boxes.";
+"继承目录" = "Inherit Directory";
+"⌘N/⌘T 新窗口从当前窗口所在目录起步(不用重新 cd)" = "⌘N/⌘T open new windows in the current window's directory (no need to cd again)";
+"Meta 键(Option)" = "Meta Key (Option)";
+"Option 键发 Meta:⌥B/⌥F 按词跳、⌥. 取上条参数;关闭则打特殊字符(∫´®)" = "Option sends Meta: ⌥B/⌥F jump by word, ⌥. inserts the last argument. Turn it off to type special characters (∫´®) instead.";
+"滚回行数" = "Scrollback";
+"1 千" = "1K";
+"5 千" = "5K";
+"1 万" = "10K";
+"5 万" = "50K";
+"10 万" = "100K";
+"历史能往回翻多少行(改了立即生效;越大越占内存)" = "How many lines of history you can scroll back through (applies immediately; larger uses more memory)";
+"输出速率" = "Output Rate";
+"约 %d 字符/秒。**随当前预设保存** —— 换主题各用各的速率。⌃C 立刻吐完积压" = "About %d characters/sec. **Saved with the current preset** — each theme keeps its own rate. ⌃C flushes the backlog instantly.";
+"不限速。选一档即模拟老设备的出字节奏(300 bps 能看着屏幕一行行长出来)。**随当前预设保存**" = "Unthrottled. Pick a rate to simulate how old hardware printed characters (at 300 bps you can watch the screen fill line by line). **Saved with the current preset.**";
+"不限速" = "Unthrottled";
+"粘贴保护" = "Paste Protection";
+"粘贴多行内容时先弹确认框(每个换行都会被 shell 当回车执行,误贴很危险)" = "Show a confirmation before pasting multiple lines (every newline is executed as Return by the shell, so a bad paste is dangerous)";
+"荧光闪屏" = "Visual Bell";
+"终端响铃(\\a)时屏幕亮度脉冲一下 —— 复古 CRT 版 visual bell" = "Pulse the screen brightness when the terminal rings the bell (\\a) — the CRT flavor of a visual bell";
+"响铃通知" = "Bell Notifications";
+"窗口不在前台时响铃 → 送系统通知中心" = "When the window isn't frontmost, a bell posts a system notification";
+"长命令通知" = "Long Command Notifications";
+"后台跑完的长命令 → 送通知(含耗时与退出码;需 Shell 集成)" = "Long commands that finish in the background post a notification (with elapsed time and exit code; requires Shell Integration)";
+"时长阈值" = "Threshold";
+"%d 秒" = "%ds";
+
+// ── Settings: cursor ────────────────────────────────────────────────────────
+"光标" = "Cursor";
+"形状" = "Shape";
+"块" = "Block";
+"下划线" = "Underline";
+"竖线" = "Bar";
+"闪烁(空闲 1 秒后开始)" = "Blink (starts after 1 second idle)";
+
+// ── Settings: shortcuts ─────────────────────────────────────────────────────
+"快捷键" = "Shortcuts";
+"全部快捷键一览(仅查看;快捷键不可自定义)" = "All keyboard shortcuts (reference only — shortcuts aren't customizable)";
+"窗口与标签页" = "Windows & Tabs";
+"继承当前工作目录(设置→终端可关)" = "Inherits the current working directory (can be turned off in Settings → Terminal)";
+"并入当前窗口的标签组" = "Joins the current window's tab group";
+"先播显像管关机动画再关" = "Plays the CRT power-off animation, then closes";
+"下一个 / 上一个标签页" = "Next / previous tab";
+"焦点在各分屏间轮转" = "Cycles focus between panes";
+"编辑与查找" = "Editing & Search";
+"复制 / 粘贴 / 全选" = "Copy / paste / select all";
+"查找" = "Find";
+"回车=下一个(向历史方向),⇧回车=上一个,Esc 关闭" = "Return = next (toward older history), ⇧Return = previous, Esc closes";
+"查找下一个 / 上一个" = "Find next / previous";
+"回车 / Esc" = "Return / Esc";
+"粘贴保护确认框" = "Paste confirmation";
+"多行粘贴弹出预览:回车确认粘贴,Esc 取消" = "Multi-line pastes show a preview: Return confirms, Esc cancels";
+"命令导航" = "Command Navigation";
+"需先安装 Shell 集成(菜单「命令 → 安装 Shell 集成…」,仅 zsh)" = "Requires Shell Integration first (menu Commands → Install Shell Integration…, zsh only)";
+"跳到上一条 / 下一条命令" = "Jump to previous / next command";
+"在滚回历史里按命令边界跳转" = "Navigates the scrollback by command boundaries";
+"显示与特效" = "Display & Effects";
+"复古 ↔ 普通终端模式,切换带换台闪断" = "Retro ↔ plain terminal mode, with a channel-switch flash";
+"径向波纹 + 色差彩蛋;点击机壳边缘也能触发" = "A radial ripple + color-fringing easter egg; clicking the bezel also triggers it";
+"仿 CRT 屏上菜单:↑↓ 选项,←→ 调值,Esc 关闭" = "A CRT-style on-screen display: ↑↓ picks an item, ←→ changes the value, Esc closes";
+"导出" = "Export";
+"文件存到桌面" = "Files are saved to the Desktop";
+"含机壳的整幅画面 PNG" = "A full-frame PNG including the bezel";
+"录制 GIF" = "Record GIF";
+"再按一次停止,上限 30 秒" = "Press again to stop; 30 seconds max";
+"鼠标" = "Mouse";
+"⌘点击" = "⌘-click";
+"打开链接 / 文件路径" = "Open links / file paths";
+"⌘悬停出荧光下划线;path:line(编译报错格式)直接跳编辑器对应行" = "⌘-hover shows a glowing underline; path:line (compiler error format) jumps straight to that line in your editor";
+"点击机壳" = "Click the bezel";
+"消磁彩蛋" = "Degauss easter egg";
+"CRT 模式下点终端画面外的机壳边框区域" = "In CRT mode, click the bezel area outside the terminal picture";
+"当前:Option 作为 Meta 键(设置 → 终端 可关)。关闭后 Option 恢复输入特殊字符。" = "Currently: Option acts as Meta (can be turned off in Settings → Terminal). Turn it off and Option types special characters again.";
+"当前:已关闭(Option 输入特殊字符)。在 设置 → 终端 里开启后以下才可用。" = "Currently: off (Option types special characters). Enable it in Settings → Terminal for the shortcuts below to work.";
+"光标按词后退 / 前进" = "Move cursor back / forward by word";
+"zsh/bash/Emacs 词跳" = "zsh/bash/Emacs word motion";
+"删除前一个词" = "Delete the previous word";
+"删除后一个词" = "Delete the next word";
+"插入上条命令的末尾参数" = "Insert the last argument of the previous command";
+"连按向更早的命令回溯" = "Press repeatedly to walk back through older commands";
+
+// ── Settings: remote hosts ──────────────────────────────────────────────────
+"远程主机" = "Remote Hosts";
+"还没有服务器。添加后可从菜单栏「服务器」点击连接,或 ⇧⌘O 呼出选单(回车连接,⇧回车分屏连)。" = "No servers yet. Once added you can connect from the Servers menu, or press ⇧⌘O for the picker (Return connects, ⇧Return connects in a split).";
+"已存密码(钥匙串)" = "Password saved (Keychain)";
+"新增服务器…" = "Add Server…";
+"新增服务器" = "Add Server";
+"编辑服务器" = "Edit Server";
+"名字" = "Label";
+"生产网关" = "prod-gateway";
+"主机" = "Host";
+"IP 或域名" = "IP or hostname";
+"端口" = "Port";
+"用户名" = "Username";
+"密码" = "Password";
+"已存(留空不改)" = "Saved (leave blank to keep)";
+"留空 = 走密钥/手动输入" = "Blank = use a key or type it manually";
+"备注" = "Notes";
+"兼容" = "Legacy";
+"兼容旧设备(允许 ssh-rsa)" = "Legacy device compatibility (allow ssh-rsa)";
+"额外参数" = "Extra Options";
+"可选,原样拼进 ssh 命令" = "Optional; passed through to the ssh command verbatim";
+"老设备(如越狱 iPhone、旧路由器/NAS)只提供 SHA-1 的 ssh-rsa 算法," = "Old devices (legacy routers, NAS boxes, embedded gear) only offer the SHA-1 ssh-rsa algorithm,";
+"新版 ssh 默认已停用 → 报 no matching host key type found。" = "which modern ssh disables by default → \"no matching host key type found\".";
+"打开这个开关会自动带上兼容参数。" = "Turning this on adds the compatibility options automatically.";
+"测试中…" = "Testing…";
+"测试连通" = "Test Connection";
+"清除已存密码" = "Clear Saved Password";
+"密码只存系统钥匙串,不写入任何配置文件。连接 = YeTerm 替你在 shell 里输入 ssh 命令(退出 ssh 回到原 shell);检测到 password: 提示自动代填一次,首连指纹确认自动应答 yes。" = "Passwords live in the system Keychain only and are never written to any config file. Connecting means YeTerm types the ssh command into your shell for you (quitting ssh returns you to that shell); when it sees a password: prompt it fills it in once, and it answers yes to the first-connection fingerprint prompt.";
+"\n已把兼容参数填入「额外参数」,点保存即长期生效。" = "\nThe compatibility options have been filled into Extra Options — hit Save to keep them.";
+"(已自动补兼容参数)" = " (compatibility options added automatically)";
+"连通,且免密登录成功%@" = "Connected, and key-based login succeeded%@";
+"连通,握手成功,等待密码/密钥认证%@" = "Connected, handshake succeeded, awaiting password/key authentication%@";
+"算法协商失败,且本机 ssh 已不支持对方提供的算法:" = "Algorithm negotiation failed, and your ssh no longer supports what the other side offers: ";
+"网络可达,但端口没开(对方 sshd 没跑?)" = "Host is reachable but the port is closed (is sshd running over there?)";
+"网络不通 —— 内网地址请检查「本地网络」权限" = "No route to host — for LAN addresses, check the Local Network permission";
+"(菜单 服务器 → 检查本地网络权限…)" = " (menu Servers → Check Local Network Permission…)";
+"连接超时(地址/端口写错,或对方不在线)" = "Connection timed out (wrong address/port, or the host is offline)";
+"主机名解析失败" = "Couldn't resolve the hostname";
+"连接失败(exit %d)" = "Connection failed (exit %d)";
+"无法启动 ssh:%@" = "Couldn't start ssh: %@";
+
+// ── Local network permission ────────────────────────────────────────────────
+"连不上内网主机 %@" = "Can't reach LAN host %@";
+"已向系统申请本地网络权限。若弹出授权请点「允许」;" = "Requested Local Network permission from the system. If a prompt appears, click Allow; ";
+"没弹窗就去 系统设置 → 隐私与安全性 → 本地网络 手动打开 YeTerm。" = "if nothing appears, enable YeTerm manually in System Settings → Privacy & Security → Local Network.";
+"可达:%1$@:%2$d 连通。" = "Reachable: connected to %1$@:%2$d.";
+"连不上 %1$@:%2$d —— 若是内网地址,请在 系统设置 → 隐私与安全性 → 本地网络 " = "Can't reach %1$@:%2$d — if that's a LAN address, go to System Settings → Privacy & Security → Local Network ";
+"里确认 YeTerm 的开关已打开(若列表里没有,先点一次「打开设置」" = "and make sure YeTerm is switched on (if it isn't listed, click “Open Settings” once ";
+"再回来重试一次连接)。" = "and then come back and retry the connection).";
+
+// ── Settings: profiles / files ──────────────────────────────────────────────
+"配置文件" = "Profiles";
+"导入…" = "Import…";
+"导出…" = "Export…";
+"当前配置自动保存于 ~/Library/Application Support/YeTerm/config.json,启动时自动载入。" = "The current configuration is saved automatically to ~/Library/Application Support/YeTerm/config.json and loaded on launch.";
+"主题配置格式文档" = "Theme Format Documentation";
+"保存到电脑…" = "Save to Disk…";
+"一份 Markdown 格式的主题 JSON 完整字段说明(含给 AI 的生成建议与示例)。把它交给任意 AI 即可帮你生成主题文件,放进 profiles 目录或用上方「导入」即可使用。" = "A Markdown reference for every field of the theme JSON (including tips and examples for prompting an AI). Hand it to any AI to have it generate a theme file for you, then drop it into the profiles directory or use Import above.";
+"主题配置格式" = "Theme Format";
+"YeTerm 主题配置格式.md" = "YeTerm Theme Format.md";
+"文档保存失败" = "Couldn't Save the Document";
+"配置导入失败" = "Import Failed";
+"无法解析 %@,请确认是有效的主题配置 JSON。" = "Couldn't parse %@ — please check that it's a valid theme JSON file.";
+"配置导出失败" = "Export Failed";
+
+// ── Notifications / window titles ───────────────────────────────────────────
+"终端响铃" = "Terminal Bell";
+"失败(退出码 %d)" = "failed (exit code %d)";
+"%1$d 分 %2$d 秒" = "%1$dm %2$ds";
+"命令%@" = "Command %@";
+"耗时 %1$@ — %2$@" = "took %1$@ — %2$@";
+"YeTerm截图" = "YeTerm Screenshot";
+"截图已保存" = "Screenshot Saved";
+"● 录制 GIF 中…(⇧⌘R 停止,上限 30 秒)" = "● Recording GIF… (⇧⌘R to stop, 30s max)";
+"YeTerm动图" = "YeTerm Recording";
+"GIF 已保存" = "GIF Saved";
+"还没有命令记录" = "No Command History Yet";
+"命令导航需要 Shell 集成:菜单「命令 → 安装 Shell 集成…」一键写入,重开终端生效。" = "Command navigation needs Shell Integration: use menu Commands → Install Shell Integration…, then reopen the terminal.";
+"着色器重载失败(保留旧版本继续运行)" = "Shader Reload Failed (keeping the previous version running)";
+
+// ── Preset blurbs (Presets.swift) ───────────────────────────────────────────
+"琥珀磷光(P3)单色屏,80 年代文字终端最常见的暖色,据说比绿屏更护眼——当年的\"深色模式之争\"。" = "Amber phosphor (P3) monochrome. The most common warm tint on 1980s text terminals, said to be easier on the eyes than green — the dark-mode debate of its day.";
+"绿磷光(P1)单色屏,大众印象里\"终端\"的原型。黑底绿字加上轻微闪烁与噪点,是机房与黑客电影的共同记忆。" = "Green phosphor (P1) monochrome — the archetypal \"terminal\" in the popular imagination. Green on black with a touch of flicker and noise: the shared memory of machine rooms and hacker movies.";
+"1982 年,史上最畅销的家用电脑(约 1700 万台)。VIC-II 显示芯片标志性的蓝底淡紫字,配原机字库字体,开机画面 READY. 是一代人的起点。" = "1982, the best-selling home computer ever (~17 million units). The VIC-II chip's signature light-purple-on-blue, with the machine's own character ROM font. Its READY. prompt was where a generation started.";
+"1977 年\"三位一体\"(与 Apple ][、TRS-80 同年)之一,金属一体机+内置绿屏。原机字库+宽字符(fontWidth 1.25)还原。" = "One of the 1977 \"Trinity\" (alongside the Apple ][ and TRS-80): an all-metal all-in-one with a built-in green screen. Recreated with its original character ROM and wide glyphs (fontWidth 1.25).";
+"1977 年个人电脑革命的起点,乔布斯车库传奇的主角。绿磷光+原机点阵字体。" = "1977, where the personal computer revolution began and the Jobs garage legend was born. Green phosphor with the machine's original bitmap font.";
+"1979 年 Atari 8-bit 家族入门机,薄膜键盘+电视输出。蓝底浅蓝的柔和感来自家用电视的低通滤波,配原机字库。" = "1979, the entry model of Atari's 8-bit family: membrane keyboard, TV output. The soft light-blue-on-blue comes from a home TV's low-pass filtering. Uses the machine's own character ROM.";
+"1987 年 IBM PS/2 带来的 VGA 文本模式:80×25、9×16 点阵、灰白字。DOS 时代装机自带的\"素颜\",配原版 VGA 字模。" = "The VGA text mode the 1987 IBM PS/2 brought: 80×25, a 9×16 cell, off-white text. The bare face every DOS-era machine shipped with, using the original VGA font.";
+"1972 年起服役的 IBM 3270 系大型机终端。无弧度无噪点——机房级硬件的冷静绿,和家用机的花哨是两个世界。" = "The IBM 3270-series mainframe terminal, in service from 1972. No curvature, no noise — the composed green of machine-room hardware, a world away from flashy home computers.";
+"1981 年 IBM PC 原配单色显示器,P39 长余辉绿磷光——字符移动会拖出绿色残影,burn-in 调高正是还原这条尾巴。配 IBM PC 原版字模。" = "The monochrome display the 1981 IBM PC shipped with. P39 long-persistence green phosphor — moving characters drag a green trail behind them, which is exactly what the high persistence setting recreates. Uses the original IBM PC font.";
+"1978 年 DEC 出品,史上影响力最大的终端——今天所有终端软件(包括本 app)都在模拟它的转义序列。P4 白磷光,航母级机壳。" = "DEC, 1978 — the most influential terminal ever made. Every terminal program today (this one included) still emulates its escape sequences. P4 white phosphor in a battleship-grade case.";
+"1983 年 VT100 继任者:屏更平、字更锐、闪烁更少。琥珀磷光是当年办公室的\"护眼款\"选配。" = "The 1983 successor to the VT100: flatter screen, sharper glyphs, less flicker. Amber phosphor was the office \"easy on the eyes\" option of the day.";
+"1984 年初代 Mac 的 9 英寸屏:黑字白底模拟纸张,和当年清一色黑底终端唱反调。配 Monaco——初代 Mac 的原装等宽字体。" = "The 9-inch screen of the original 1984 Mac: black on white to imitate paper, deliberately at odds with the uniformly dark terminals of its time. Paired with Monaco, the first Mac's own monospace font.";
+"1981 年史上第一台\"便携\"电脑:11 公斤手提箱,5 英寸小绿屏挤在两个软驱中间。超高弧度+小点阵字体还原贴脸看小屏的感觉。" = "1981, the first \"portable\" computer: an 11 kg suitcase with a 5-inch green screen wedged between two floppy drives. Heavy curvature and a tiny bitmap font recreate the experience of squinting at it up close.";
+"1984 年欧洲国民学习机,标配 GT65 绿屏——比接电视清楚,比彩显便宜,课桌上的绿色方块字。" = "1984, Europe's everyman learning machine, sold with the GT65 green monitor — clearer than a TV, cheaper than color. The green blocky letters of a school desk.";
+"1982 年英国 8-bit 国民机,靠射频线接家用电视——色散与雪花是那根 RF 线的\"味道\"(v1.2 打磨:保留味道、收敛晃动)。浅底黑字还原 BASIC 屏。" = "Britain's 1982 people's 8-bit machine, connected to a home TV over an RF cable — the color fringing and static are that cable's flavor (tuned in v1.2 to keep the flavor but calm the wobble). Dark on light recreates its BASIC screen.";
+"DOS 时代的\"工作蓝\":QBasic、EDIT、Norton Commander 的经典蓝底白字,一代人的编程启蒙背景色。配原版 VGA 字模。" = "The working blue of the DOS era: the white-on-blue of QBasic, EDIT and Norton Commander — the background color a generation learned to program against. Uses the original VGA font.";
+"1974 年存储管图形终端:图形画上去就\"存\"在荧光屏上、不需刷新。burn-in 拉到最满,致敬这块不会忘记的屏。" = "A 1974 storage-tube graphics terminal: whatever you drew stayed on the phosphor without any refresh. Persistence is set to maximum in tribute to the screen that never forgets.";
+"1980 年 RadioShack 百万销量神机(Model I 改进型),自带微微偏蓝的白磷光屏,平价电脑的第一缕冷光。" = "RadioShack's million-selling 1980 machine (a refined Model I), with a slightly blue-tinted white phosphor screen — the first cool glow of affordable computing.";
+"1987 年多媒体霸主 Amiga 家族的国民机型,Workbench 系统标志性的蓝底白字橙点缀。轻微色散还原 RGB 彩显的观感。" = "The everyman model of the 1987 Amiga family, multimedia king of its day. Workbench's signature white-on-blue with orange accents. A touch of color fringing recreates the look of an RGB monitor.";
+"1981 年英国 BBC 电脑扫盲计划的官方机器,一代英国程序员的启蒙。电视输出的白字黑底 + Mode 7 图文电视的味道。" = "The official machine of the BBC's 1981 Computer Literacy Project, where a generation of British programmers began. White on black over TV output, with a hint of Mode 7 teletext.";
+"1978 年日本\"御三家\"之一(与 NEC、日立并称),一体机内置 10 英寸绿屏。日系早期个人电脑的方正绿字。" = "1978, one of Japan's \"big three\" (alongside NEC and Hitachi): an all-in-one with a built-in 10-inch green screen. The square green letterforms of early Japanese personal computing.";
+"冷调蓝白荧光,保留 ANSI 彩色(chroma 全开)。不对应具体设备的冷色氛围创作。" = "A cool blue-white phosphor that keeps full ANSI color (chroma wide open). An original cool-toned mood piece, not a specific machine.";
+"现代霓虹风创作:高辉光青色荧光+半透明窗口,赛博都市夜景的配色。" = "A modern neon original: heavy bloom on cyan phosphor with a translucent window — the palette of a cyber city at night.";
+"低对比灰+高透明度,\"幽灵\"一样安静地叠在桌面上——适合当常驻的监控窗。" = "Low-contrast grey at high transparency, sitting over your desktop as quietly as a ghost — good as an always-on monitoring window.";
+"等离子粉紫+高辉光+色散,合成器浪潮(Synthwave)审美的终端演绎。" = "Plasma pink-purple with heavy bloom and color fringing: synthwave aesthetics rendered as a terminal.";
+"名字即注释:全部特效关到最低的纯白字+系统字体。对照组,也是排查\"这是特效问题还是内容问题\"的基准。" = "The name says it all: every effect at minimum, plain white text in a system font. A control group, and the baseline for telling \"is this the effects or the content?\" apart.";
+"电子墨水风:米白纸底+深灰字,高余辉模拟墨水屏的残影。类纸阅读感,白天最舒服的一档。" = "E-paper style: warm white paper with dark grey text, high persistence standing in for e-ink ghosting. Paper-like and the most comfortable option in daylight.";
+"《黑客帝国》数字雨绿(#00ff41)。配轻扫描线与余辉,ANSI 16 色也是全绿单色阶(层次靠亮度,连报错都是绿的)——Wake up, Neo." = "The digital-rain green of The Matrix (#00ff41), with light scanlines and persistence. Even the 16 ANSI colors are a single green ramp (depth comes from brightness — errors are green too). Wake up, Neo.";
+"2011 年 Ethan Schoonover 用色彩学精密设计的低对比配色,十几年长盛不衰的程序员护眼圣经。暗色版,带官方 ANSI 表。" = "Ethan Schoonover's 2011 low-contrast palette, precision-designed from color science and still a programmer's eye-comfort gospel a decade later. The dark variant, with the official ANSI table.";
+"Solarized 的浅色版:米黄纸底,长时间白天工作的经典选择。带官方 ANSI 表。" = "The light variant of Solarized: a cream paper background, a classic for long daytime sessions. Includes the official ANSI table.";
+"2013 年诞生的暗色顶流,吸血鬼紫底+柔和高亮,官网口号\"Dark theme for everyone\"。带官方 ANSI 表。" = "The dark-theme superstar born in 2013: vampire purple with soft highlights, marketed as \"a dark theme for everyone\". Includes the official ANSI table.";
+"北极风配色:蓝灰基调冷静克制,源自\"北极、冰雪、极光\"的意象,近年极简派最爱。带官方 ANSI 表。" = "An arctic palette: restrained blue-greys drawn from imagery of the far north, ice and the aurora. A recent favorite among minimalists. Includes the official ANSI table.";
+"复古暖色系:低饱和奶油黄配深棕底,故意做旧的\"复古显示器\"质感——配位图字体加倍做旧,Vim 圈经典。带官方 ANSI 表。" = "Retro warmth: desaturated cream yellow on deep brown, deliberately aged into a \"vintage monitor\" feel — pair it with a bitmap font to age it further. A Vim-community classic. Includes the official ANSI table.";
+"东京夜景配色:深蓝夜空底+霓虹柔光字,VS Code 上的现代人气王。带官方 ANSI 表。" = "Tokyo at night: a deep blue sky background with softly glowing neon text. A modern favorite on VS Code. Includes the official ANSI table.";
+"2004 年起 Linux 桌面的第一印象:紫红 aubergine(茄皮紫)终端底色,开源世界的官方色。带官方 ANSI 表。" = "The first impression of the Linux desktop since 2004: the aubergine terminal background that became open source's official color. Includes the official ANSI table.";
+"2021 年爆红的\"猫布奇诺\"奶咖配色,柔和低饱和的粉彩系,GitHub 星数最高的主题项目之一。Mocha 是四口味中最深的一档。" = "The \"cat-puccino\" latte palette that took off in 2021: soft, low-saturation pastels, and one of the most-starred theme projects on GitHub. Mocha is the darkest of its four flavors.";
+"Atom 编辑器的遗产:GitHub 出品的经典暗色,红绿黄蓝紫五色平衡,被移植到几乎所有编辑器与终端。" = "The legacy of the Atom editor: GitHub's classic dark theme, balanced across red, green, yellow, blue and purple, and ported to nearly every editor and terminal since.";
+"2006 年 Wimer Hazenberg 的传奇配色,Sublime Text 默认主题让它家喻户晓——荧光粉+青柠绿的高对比,写代码像打霓虹灯。" = "Wimer Hazenberg's legendary 2006 palette, made a household name as Sublime Text's default — high-contrast hot pink and lime green that makes coding feel like wiring neon.";
+"GitHub 官方暗色模式同款:网页上看代码什么样,终端里就什么样。冷静克制的工程师灰蓝。" = "The same colors as GitHub's official dark mode: code looks in your terminal exactly as it does on the site. A composed engineer's grey-blue.";
+"玫瑰松林:低饱和玫瑰粉+松绿+暮紫的\"晚霞森林\"意象,近年小众精品,适合夜晚安静写代码。" = "Rosé Pine: desaturated rose, pine green and dusk purple evoking a forest at sunset. A recent boutique favorite, well suited to quiet night coding.";
+"常青森林:绿色基调的护眼配色,低蓝光暖色温,像在森林里写代码。Vim 圈 Gruvbox 之后的新宠。" = "Evergreen: a green-based, eye-friendly palette with low blue light and a warm temperature — like coding in a forest. The Vim community's favorite since Gruvbox.";
+"灵感来自葛饰北斋《神奈川冲浪里》:墨蓝底色配浮世绘的靛蓝与土黄,日式沉静。" = "Inspired by Hokusai's Great Wave off Kanagawa: an ink-blue ground with ukiyo-e indigo and ochre. Quietly Japanese.";
+"Ayu 三兄弟中的暗色版:极简高对比,橙色点缀像夜里的一盏灯,亚洲开发者圈的人气选择。" = "The dark member of the Ayu trio: minimal and high-contrast, with orange accents like a lamp in the dark. Popular among Asian developers.";

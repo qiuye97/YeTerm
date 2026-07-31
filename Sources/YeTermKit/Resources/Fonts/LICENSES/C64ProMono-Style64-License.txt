@@ -1,0 +1,38 @@
+C64 TrueType Fonts — License
+(C64 Pro Mono / "C64_Pro_Mono-STYLE.ttf")
+
+Copyright (c) 2010-2014, Style. — http://style64.org
+Official license page: http://style64.org/c64-truetype/license
+
+The license text below is reproduced from the font's embedded license
+description (name table ID 13) and from the official license page.
+
+--------------------------------------------------------------------------
+You MAY NOT:
+
+  - sell this font;
+  - include/redistribute this font in any font collection regardless of
+    pricing;
+  - provide the font for direct download from any web site.
+
+You MAY:
+
+  - link to "http://style64.org/c64-truetype" in order for others to
+    download and install the font;
+  - embed this font and or its .eot and .woff variants without any
+    modification and using the same filenames they were provided with for
+    display on any web site using @font-face rules;
+  - use this font in static images and vector artwork;
+  - include this font without any modification and using the same filenames
+    they were provided with as part of a software package but ONLY if said
+    software package is freely provided to end users.
+
+For uses outside these guidelines, please contact Style at
+http://style64.org to negotiate alternative licensing arrangements.
+--------------------------------------------------------------------------
+
+How YeTerm complies
+-------------------
+YeTerm is provided free of charge to end users, bundles the font file
+unmodified and under its original filename, and does not sell it or
+include it in a font collection product.

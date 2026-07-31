@@ -1,0 +1,31 @@
+# SwiftPM 构建产物
+.build/
+.swiftpm/
+
+# 打包与验证产物
+dist/
+artifacts/
+
+# macOS
+.DS_Store
+
+# 跑分产物(负载文件很大,结果按机器而异)
+.bench/
+
+# 私有笔记:只在本机保留的考据/实测记录,不进公开仓库
+private/
+
+# 本机联调用的临时文件
+micro-test.java
+
+# ── 私有:只在本机保留,不进公开仓库 ──────────────────────────────
+# 开发内部资料:给 Claude 看的项目约定、移植对照底稿、逐版计划归档、
+# 需求源头文档、开发速查。公开仓库对外的说明在 README / CONTRIBUTING。
+CLAUDE.md
+README-dev.md
+复古终端-需求设计文档.md
+参考资料/
+docs/
+
+# Claude Code 本机权限配置(个人设置,不入库)
+.claude/settings.local.json
