@@ -592,6 +592,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     }
 
     var gifRecordingForTesting: Bool { gifRecorder.isRecording }
+    var gifFrameCountForTesting: Int { gifRecorder.frameCount }
 
     // MARK: - 消磁彩蛋(v1.2 #13)
 

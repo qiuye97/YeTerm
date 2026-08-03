@@ -135,6 +135,23 @@ public enum YeTermCLI {
             return AutoDrive.run(outPrefix: args[i + 1], options: options)
         }
 
+        // 演示 GIF(README / Release 那张动图的生产工具):真实窗口 + 真实 shell,
+        // 按脚本演一遍再落盘。--demo-rate 是波特率限速(0=不限速),演示的主角
+        if let i = args.firstIndex(of: "--demo-gif"), i + 1 < args.count {
+            var options = LaunchOptions()
+            if let cfg = resolveConfig(args) {
+                options.config = cfg
+                if let f = cfg.resolvedFontName { options.fontName = f }
+            }
+            if let v = value(after: "--font", in: args) { options.fontName = v }
+            if let v = value(after: "--font-size", in: args), let n = Double(v) { options.fontSize = CGFloat(n) }
+            let rate = value(after: "--demo-rate", in: args).flatMap { Int($0) } ?? 2400
+            let cols = value(after: "--demo-cols", in: args).flatMap { Int($0) } ?? 96
+            let rows = value(after: "--demo-rows", in: args).flatMap { Int($0) } ?? 28
+            return DemoGIF.run(outPath: args[i + 1], options: options,
+                               bitRate: rate, cols: cols, rows: rows)
+        }
+
         if let i = args.firstIndex(of: "--render-demo"), i + 1 < args.count {
             var opt = RenderDemoOptions(outPath: args[i + 1])
             if let v = value(after: "--cols", in: args), let n = Int(v) { opt.cols = n }

@@ -27,6 +27,8 @@ final class GIFRecorder {
     let maxSeconds = 30.0
     var isRecording: Bool { timer != nil }
     var seconds: Double { Double(frames.count) / fps }
+    /// 已攒下的帧数(演示录制脚本用来确认"帧是不是还在进来")
+    var frameCount: Int { frames.count }
 
     /// 开始录制。`onAutoStop`:攒满上限自动停时回调(菜单状态要跟着变)
     func start(frameProvider: @escaping () -> CGImage?, onAutoStop: @escaping () -> Void) {

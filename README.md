@@ -39,8 +39,8 @@ A third annoyance, while I was at it: cool-retro-term only opens **one window**.
 ## What it looks like
 
 <div align="center">
-<img src="assets/screenshots/crt_live.gif" width="620" alt="Animated CRT effects: flicker, static noise and a moving scan line">
-<br><em>The effects are live — flicker, static, the moving scan line, phosphor persistence.</em>
+<img src="assets/screenshots/crt_live.gif" width="620" alt="A CRT terminal session: green phosphor text typing itself out under scanlines, an ASCII banner, mixed Chinese, Japanese and Korean text, then a switch to an amber phosphor theme, a degauss ripple, and a color CRT showing ANSI colors">
+<br><em>Recorded by the app itself (<code>scripts/make_demo_gif.sh</code>). Output is rate-limited to 4800 baud, so text types itself onto the screen the way a real serial terminal did — under live scanlines, bloom, flicker and static. Then the theme switches with an old-TV channel-change flash, the screen degausses, and the last preset is a color CRT.</em>
 </div>
 
 **43 built-in presets.** 21 recreate specific hardware, 22 are classic color schemes (Solarized, Dracula, Nord, Gruvbox, Tokyo Night, Catppuccin…).
@@ -59,6 +59,7 @@ Each hardware preset is tuned to what that machine actually did — the Tektroni
 - **Any monospace font, any script** — including CJK, in every rasterization mode
 - **Multi-window / tabs / split panes** with a glowing divider line
 - **Baud rate limiting** — 15 steps from 110 bps up, if you want to watch text crawl onto the screen the way it used to
+- **Background image** — in either mode. Under CRT it replaces the unlit screen behind the phosphor, so glowing text keeps its own color and never gets washed out by a bright picture; the image bulges with the screen curvature and picks up the scanlines. Optionally tinted to the phosphor color, as if the monitor were displaying it.
 - **Inline images** (iTerm2 + Kitty protocols) — pictures go through the whole CRT pipeline
 - **Command navigation** (OSC 133), search, ⌘-click on links and file paths, paste protection, session restore, screenshot & GIF export
 - **SSH host list** with passwords in the system Keychain and automatic algorithm downgrade for old devices

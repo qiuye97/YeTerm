@@ -283,6 +283,10 @@ final class MetalOverlayView: MTKView {
     /// 自测口:焦点 pane 在合成画面里的落点(必须落在整数物理像素上)
     var focusedPaneOriginForTesting: CGPoint { focusedRectPx.origin }
 
+    /// 焦点 pane 的字符格尺寸(物理像素)。演示 GIF 按「要多少列多少行」反推窗口
+    /// 大小时要用它 —— 字号/字体不同,一格多大只有渲染过一帧才知道
+    var focusedCellPxForTesting: (w: Int, h: Int) { focusedCellPx }
+
     // ---- 服务器选单(v1.3 SSH,⇧⌘O;OSD 同款画布合成) ----
     private(set) var serverPickerController: ServerPickerController?
 
