@@ -83,6 +83,11 @@ public enum RenderDemo {
         // CRT 模式 ANSI 覆盖同源(v1.2 预设大更新:经典配色预设带官方 16 色表)
         AnsiColor.crtOverride = demoCfg?.crtEffectsEnabled == false
             ? nil : demoCfg?.crtAnsiPalette()
+        // CRT 模式「文字颜色」同源(2026-08-03 默认前景覆盖)。内置预设一律
+        // nil = 纯白;经典 CRT 的锁定在 storedConfig/设置页,harness 直读
+        // 配置不再判(--config 手喂什么就渲什么,复现/调试用得上)
+        AnsiColor.crtFgOverride = demoCfg?.crtEffectsEnabled == false
+            ? nil : demoCfg?.crtTextFg()
         let font = TermHost.resolveFont(name: opt.fontName, size: opt.fontSize,
                                         width: CGFloat(demoCfg?.fontWidth ?? 1))
         let content = ContentRenderer(ctx: mtl)

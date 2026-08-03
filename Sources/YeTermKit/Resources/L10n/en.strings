@@ -154,6 +154,9 @@
 "色彩浓度" = "Chroma";
 "色彩浓度 = 0 时为纯单色荧光屏;= 1 时保留终端原色。" = "At 0 the screen is a pure monochrome phosphor; at 1 the terminal's own colors are preserved.";
 "还原专属调色板" = "Restore Signature Palette";
+"还原纯白" = "Reset to White";
+"文字颜色只作用于无颜色指令的普通输出,ANSI 彩色不受影响;色彩浓度低时会被荧光染成前景色,仅亮度生效。" = "Text Color only affects plain output with no color codes; ANSI colors are untouched. At low chroma it gets tinted to the phosphor foreground and only its brightness matters.";
+"「%@」是真实设备还原主题,文字颜色固定纯白 —— 纯白经荧光染色输出纯磷光色,是这组考据观感的前提。想自定义文字颜色请选「经典配色」组主题,或自建配置。" = "“%@” recreates a real machine, so its text color is fixed at pure white — white maps to the pure phosphor color after tinting, which this group's researched look depends on. To customize text color, pick a Classic Colors theme or build your own profile.";
 "当前:crterm 专属调色板(亮青=奶油白等荧光考据色)。修改任一色即成为自定义配色;色彩浓度低时 ANSI 色会被荧光染色。" = "Currently: the cool-retro-term signature palette (researched phosphor colors, e.g. bright cyan is a cream white). Changing any color makes it a custom palette; at low chroma the ANSI colors get tinted by the phosphor.";
 "当前:自定义 ANSI 表(经典配色主题自带官方色)。「还原专属调色板」回到 crterm 荧光考据色。" = "Currently: a custom ANSI table (classic color themes ship their official palettes). “Restore Signature Palette” goes back to the researched phosphor colors.";
 

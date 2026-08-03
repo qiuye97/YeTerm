@@ -739,8 +739,31 @@ private struct ColorsPage: View {
             colorCell(L("前景色(荧光)"), hexBinding($model.fontColorHex))
             Divider().opacity(0.25).padding(.vertical, 4)
             colorCell(L("背景色"), hexBinding($model.backgroundColorHex))
+            Divider().opacity(0.25).padding(.vertical, 4)
+            // 文字颜色(2026-08-03:CRT 模式默认前景覆盖,DIY 配置用;
+            // 经典 CRT 组锁定纯白,与背景图卡片同一条产品逻辑)
+            colorCell(L("文字颜色"), crtTextBinding)
+                .disabled(classicLocked)
+                .opacity(classicLocked ? 0.5 : 1)
         }
         .glassCard()
+        if classicLocked {
+            Text(Lf("「%@」是真实设备还原主题,文字颜色固定纯白 —— 纯白经荧光染色输出纯磷光色,是这组考据观感的前提。想自定义文字颜色请选「经典配色」组主题,或自建配置。", Presets.displayName(model.presetName)))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            HStack(alignment: .top) {
+                Text(L("文字颜色只作用于无颜色指令的普通输出,ANSI 彩色不受影响;色彩浓度低时会被荧光染成前景色,仅亮度生效。"))
+                    .font(.caption).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                if model.crtTextColorHex != nil {
+                    Button(L("还原纯白")) { model.crtTextColorHex = nil }
+                        .glassButton()
+                        .controlSize(.small)
+                }
+            }
+        }
         VStack(spacing: 10) {
             SliderRow(title: L("亮度"), value: $model.brightness)
             SliderRow(title: L("对比度"), value: $model.contrast)
@@ -814,6 +837,23 @@ private struct ColorsPage: View {
                 .scaleEffect(1.35)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 经典 CRT 组文字颜色锁定(判定按预设名,同 BackgroundImageCard)
+    private var classicLocked: Bool { Presets.isClassicCRT(model.presetName) }
+
+    /// 文字颜色绑定:nil(纯白缺省)状态下显示白,写入时物化 hex
+    private var crtTextBinding: Binding<Color> {
+        Binding<Color>(
+            get: { colorFromHex(model.crtTextColorHex ?? "#ffffff") },
+            set: { color in
+                let ns = NSColor(color).usingColorSpace(.sRGB) ?? .white
+                model.crtTextColorHex = String(format: "#%02x%02x%02x",
+                                               Int(round(ns.redComponent * 255)),
+                                               Int(round(ns.greenComponent * 255)),
+                                               Int(round(ns.blueComponent * 255)))
+            }
+        )
     }
 
     private func hexBinding(_ hex: Binding<String>) -> Binding<Color> {

@@ -33,6 +33,8 @@ final class SettingsModel: ObservableObject {
     @Published var backgroundColorHex: String = "#000000"
     // CRT 模式 ANSI 16 色(nil = crterm 专属调色板;经典配色预设带官方表)
     @Published var ansiColorsHex: [String]?
+    // CRT 模式文字颜色(2026-08-03:默认前景覆盖;nil = 纯白 = 历史行为)
+    @Published var crtTextColorHex: String?
     // 提示符主题(v1.3;nil=不干预,"retro:*"=内置复古,"omz:*"=oh-my-zsh 主题)
     @Published var promptTheme: String?
     @Published var fontName: String = "Ark Pixel 12px Mono zh_cn"
@@ -129,6 +131,8 @@ final class SettingsModel: ObservableObject {
         // 直赋不用 ??(切预设必须正确重置:经典 CRT 预设 nil = 回 crterm 调色板,
         // 否则上一套经典配色的 ANSI 表会残留串台)
         ansiColorsHex = c.ansiColors
+        // 同为身份字段直赋:切到没配文字颜色的预设就该回纯白,不残留上一套的颜色
+        crtTextColorHex = c.crtTextColor
         // 同为身份字段直赋:经典配色 nil = 不干预提示符,不残留上一主题的复古提示符
         promptTheme = c.promptTheme
         if let f = c.resolvedFontName { fontName = f }
@@ -282,9 +286,16 @@ final class SettingsModel: ObservableObject {
                 // 再回变回出厂 ASCII)—— v1.3 新字段无旧快照压制风险(旧 override
                 // 无此键即 nil 兜底出厂),用户对内置预设的提示符微调应被记住
                 c.promptTheme = o.promptTheme ?? c.promptTheme
+                // 文字颜色入白名单(2026-08-03:与 fontColor 同类的观感微调,
+                // 用户给经典配色预设调的文字颜色应被记住)
+                c.crtTextColor = o.crtTextColor ?? c.crtTextColor
             }
-            // 经典 CRT 锁定兜底(旧档可能存过"关"):设备还原主题恒为 CRT 开
-            if Presets.isClassicCRT(name) { c.crtEffectsEnabled = true }
+            // 经典 CRT 锁定兜底(旧档可能存过"关"):设备还原主题恒为 CRT 开;
+            // 文字颜色恒纯白(2026-08-03,同一条锁定逻辑,防旧 override 残值)
+            if Presets.isClassicCRT(name) {
+                c.crtEffectsEnabled = true
+                c.crtTextColor = nil
+            }
             return c
         }
         return loadIfExists(profilePath(name))
@@ -357,6 +368,7 @@ final class SettingsModel: ObservableObject {
         c.fontColor = fontColorHex
         c.backgroundColor = backgroundColorHex
         c.ansiColors = ansiColorsHex
+        c.crtTextColor = crtTextColorHex
         c.promptTheme = promptTheme
         c.fontName = fontName
         c.brightness = brightness

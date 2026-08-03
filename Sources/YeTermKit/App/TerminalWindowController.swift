@@ -859,6 +859,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let newCrtAnsi = crtOn ? cfg.crtAnsiPalette() : nil
         if AnsiColor.crtOverride != newCrtAnsi { changed = true }
         AnsiColor.crtOverride = newCrtAnsi
+        // CRT 模式「文字颜色」(2026-08-03):默认前景覆盖,只动无颜色指令的普通
+        // 输出。经典 CRT 组不吃(考据观感依赖内容纯白 → 满驱动纯磷光,判定按
+        // 预设名,与下方"不铺背景图"同一条产品逻辑);普通模式走 plainOverride。
+        // storedConfig/设置页已锁,这里再兜一层防手改 config.json 绕过
+        let classicDevice = crtOn && Presets.isClassicCRT(cfg.name ?? "")
+        let newCrtFg = (crtOn && !classicDevice) ? cfg.crtTextFg() : nil
+        if AnsiColor.crtFgOverride != newCrtFg { changed = true }
+        AnsiColor.crtFgOverride = newCrtFg
         if changed {
             ov.invalidateContentCache()
         }
@@ -871,8 +879,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // 它们还原的是一台具体的老机器,屏幕后面贴张壁纸就不是那台机器了。
         // 判定按预设名而非"CRT 开着就不铺"—— 经典配色/私人收藏/自定义配置在
         // CRT 模式下照铺。路径/模式没变时 overlay 侧键控缓存空转,广播打进来不
-        // 重复解码;传 nil = 顺手卸载成品纹理。
-        let classicDevice = crtOn && Presets.isClassicCRT(cfg.name ?? "")
+        // 重复解码;传 nil = 顺手卸载成品纹理。(classicDevice 在上方文字颜色处定义)
         let bgPath = (cfg.plainBackgroundImage?.isEmpty == false) ? cfg.plainBackgroundImage : nil
         ov.setPlainBackground(path: classicDevice ? nil : bgPath,
                               mode: cfg.plainBackgroundImageMode ?? 0,

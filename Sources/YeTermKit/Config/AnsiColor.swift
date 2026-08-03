@@ -55,8 +55,14 @@ enum AnsiColor {
     // 考据观感靠专属调色板,且单色主题 chroma=0 下 ANSI 色本就会被染成单色)
     static var crtOverride: [SIMD3<Float>]?
 
+    // ---- CRT 模式默认前景覆盖(2026-08-03「文字颜色」):DIY 配置可给默认输出
+    // 的文字指定颜色(chroma=1 的经典配色/自建主题所见即所得,且不像调荧光色
+    // 那样把 ANSI 彩色一起偏色)。nil = 纯白(荧光染色后 = 纯磷光色,历史行为)。
+    // 与 crtOverride 同一套安装/卸载时机(applyCRTMode / RenderDemo 各一处)
+    static var crtFgOverride: SIMD3<Float>?
+
     /// 当前生效的默认前景/背景/16 色(消费方无感知切换;普通模式覆盖优先)
-    static var defaultFg: SIMD3<Float> { plainOverride?.fg ?? crtFg }
+    static var defaultFg: SIMD3<Float> { plainOverride?.fg ?? crtFgOverride ?? crtFg }
     static var defaultBg: SIMD3<Float> { plainOverride?.bg ?? crtBg }
     static var basic16: [SIMD3<Float>] { plainOverride?.palette ?? crtOverride ?? crtBasic16 }
 

@@ -105,6 +105,15 @@ public struct CRTConfig: Codable {
     // CRT 模式 ANSI 16 色(v1.2 预设大更新,YeTerm 扩展):经典配色预设携带
     // 官方 ANSI 表;nil = crterm 专属调色板(内置经典 CRT 主题一律 nil)
     public var ansiColors: [String]?
+    // CRT 模式文字颜色(2026-08-03 用户需求,YeTerm 扩展):终端**默认前景**
+    // (无 SGR 颜色指令的普通输出)画进内容纹理用的颜色;nil = 纯白(历史行为,
+    // 荧光染色后输出纯磷光色)。与「前景色(荧光)」分工:荧光色是染色滤镜,
+    // chroma=1 时乘在**所有**颜色上(调它会把 ANSI 彩色一起偏色);本字段只动
+    // 默认输出的字 —— 对齐普通模式「文字颜色」的语义。⚠️ chroma 低时色相进
+    // 不了输出(染色公式只取内容亮度),仅亮度生效,设置页有说明文案。
+    // 内置「经典 CRT」组恒 nil(考据观感依赖内容亮度=1 → 满驱动纯磷光;
+    // 锁定在 storedConfig 与设置页,同「不铺背景图」一条产品逻辑)
+    public var crtTextColor: String?
     // 提示符主题(v1.3,YeTerm 扩展;主题身份字段,不入 override 白名单):
     // nil = 不干预(用户自己的 p10k/starship 照常);"retro:ascii|dos|c64|minimal"
     // = 内置复古提示符;"omz:<主题名>" = 切指定 oh-my-zsh 主题。
@@ -335,6 +344,11 @@ public struct CRTConfig: Codable {
         guard let hexes = ansiColors, hexes.count == 16 else { return nil }
         return hexes.map { Self.hex255($0) ?? .init(0, 0, 0) }
     }
+
+    /// CRT 模式默认前景覆盖(2026-08-03「文字颜色」):÷255 精确直出(同
+    /// crtAnsiPalette 的理由 —— YeTerm 扩展字段不吃 crterm ÷256 怪癖);
+    /// nil = 纯白 = 历史行为
+    func crtTextFg() -> SIMD3<Float>? { Self.hex255(crtTextColor) }
 
     /// 普通终端模式的 AnsiColor 覆盖表(v1.2;strToColor 除以 256 的 crterm 语义
     /// 不适合普通模式精确配色,这里用标准 ÷255)
