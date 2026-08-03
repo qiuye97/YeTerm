@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.2.0] — 2026-08-03
+
+### CRT rendering
+
+- **Custom text color in CRT mode.** A third swatch in Settings → Colors sets
+  the default foreground — the color of ordinary output that carries no ANSI
+  color codes. Until now that color was fixed at pure white and everything came
+  out as the phosphor color. Unlike adjusting the phosphor foreground (which,
+  at full chroma, multiplies into every color and tints `vim`/`htop` output
+  along the way), text color leaves the ANSI palette untouched — matching how
+  plain terminal mode has always treated its own text color. The default is
+  pure white, which renders pixel-for-pixel as before.
+- At low chroma the screen is a monochrome phosphor, so only the *brightness*
+  of the chosen text color shows — the hue is absorbed by the phosphor
+  tinting. The settings page says so next to the swatch.
+- The 21 real-device restoration themes keep their text color locked at pure
+  white: white maps to the pure phosphor color after tinting, which their
+  researched look depends on. Same product logic as their locked effects and
+  background image.
+
 ## [1.1.0] — 2026-08-03
 
 ### CRT rendering
