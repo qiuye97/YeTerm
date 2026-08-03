@@ -71,8 +71,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleAllowMixedLocalizations</key><true/>
     <key>CFBundleName</key><string>YeTerm</string>
     <key>CFBundleDisplayName</key><string>YeTerm</string>
-    <key>CFBundleShortVersionString</key><string>1.0.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>1.1.0</string>
+    <key>CFBundleVersion</key><string>2</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>

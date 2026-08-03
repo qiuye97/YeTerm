@@ -5,7 +5,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [Unreleased]
+## [1.1.0] — 2026-08-03
 
 ### CRT rendering
 
