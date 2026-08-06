@@ -30,12 +30,21 @@ public enum ShellIntegration {
     # 版本感知守卫(v1.3 勘差):同版本重复 source 幂等跳过;**版本不同放行**
     # —— 否则已开会话手动 source ~/.zshrc 升级新脚本会被旧守卫拦死,
     # 「刷新脚本」对存量会话永远无效
-    [[ "$_YETERM_INTEGRATION" == "15" ]] && return 0
-    _YETERM_INTEGRATION=15
+    [[ "$_YETERM_INTEGRATION" == "16" ]] && return 0
+    _YETERM_INTEGRATION=16
 
     _yeterm_precmd() {
         local code=$?
         printf '\\e]133;D;%s\\a\\e]133;A\\a' "$code"
+        # 启动路径的主题手术推迟到这里(2026-08-06 勘差:zshrc 末尾直接做
+        # p10k teardown 会撞上 p10k instant prompt 未收尾 —— zle 被楔死成
+        # 「回显不执行」,auto-drive 首窗 100% 复现;precmd 是本脚本历次勘差
+        # 认证过的唯一安全手术时点,与 OSC 7777 握手同时机)。boot 模式走
+        # case 静态应用、不 exec(exec 只认 precmd 模式,防启动无限重启)
+        if [[ -n "${_yeterm_boot_pending-}" ]]; then
+          unset _yeterm_boot_pending
+          _yeterm_apply_prompt boot
+        fi
         # 热切握手(OSC 7777)在**首个 precmd** 发(v1.3 勘差:zshrc 加载期间
         # printf 会撞 p10k instant prompt 的"加载期禁输出"—— 触发警告刷屏
         # 甚至吞掉握手;precmd 时 instant prompt 已收尾,输出安全)
@@ -158,7 +167,9 @@ public enum ShellIntegration {
           ;;
       esac
     }
-    _yeterm_apply_prompt
+    # 启动路径不在此刻动手术(见 _yeterm_precmd 里的 boot 延迟说明):
+    # 首个提示符短暂显示 p10k(instant prompt 画的缓存帧),首个 precmd 换装
+    _yeterm_boot_pending=1
     # 热切换 v14 终极架构(2026-07-29 一日鏖战定稿):YeTerm 是终端模拟器,
     # 拥有 PTY 键盘注入权 —— 切主题时向本会话注入自定义按键序列 CSI 991~,
     # 下面把它绑定成 zle widget:**与用户手敲按键字面上同一条处理路径**

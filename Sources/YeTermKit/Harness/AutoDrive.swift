@@ -293,6 +293,31 @@ public enum AutoDrive {
             print("✗ 跳转方向异常 top \(beforeJump)→\(afterUp)→\(afterDown)")
             marksOK = false
         }
+        // 2026-08-06 回归(用户实测「⌃C 后每个空提示符长红条,clear 不消」):
+        // ① ⌃C/空回车风暴 —— 无 C 的 D;130+A 连发(zsh 在提示符上 ⌃C 后
+        //    $? 残留 130,每个空回车的 precmd 都这么发),失败标记必须一根不长。
+        //    开头先发 D;0 把当前书签干净收尾:敲这条命令本身会触发真实集成的
+        //    preexec C,不关掉的话首个合成 D;130 会把"有 C"的它关成失败误伤断言
+        tv.send(txt: "printf '\\e]133;D;0\\a\\e]133;A\\a\\e]133;D;130\\a\\e]133;A\\a\\e]133;D;130\\a\\e]133;A\\a'\n")
+        pump(0.8)
+        let stormFails = tv.failedCommandViewportRows()
+        if stormFails.count == 1 {
+            print("✓ ⌃C/空回车风暴免疫(无 C 的 D;130 不长红条,仍只有 PROMPT2 一处)")
+        } else {
+            print("✗ 空回车风暴长出红条 fails=\(stormFails)")
+            marksOK = false
+        }
+        // ② clear 后新提示符行号回落 → 旧书签(含 PROMPT2 失败标记)整体剪枝,
+        //    红条不许残留在清空的屏幕上
+        tv.send(txt: "clear; printf '\\e]133;D;0\\a\\e]133;A\\a'; echo P3\n")
+        pump(0.8)
+        let afterClear = tv.failedCommandViewportRows()
+        if afterClear.isEmpty {
+            print("✓ clear 剪枝:旧失败标记随被回收的行一并作废(fails=0)")
+        } else {
+            print("✗ clear 后红条残留 fails=\(afterClear)")
+            marksOK = false
+        }
         snap("command_marks")
 
         // 场景 10(v1.2 #5):Visual Bell + 命令完成回调 —— shell 打真 \a 断言闪屏

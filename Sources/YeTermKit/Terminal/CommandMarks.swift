@@ -45,6 +45,12 @@ final class CommandMarkStore {
         guard let kind = parts.first else { return }
         switch kind {
         case "A":
+            // 单调性剪枝(2026-08-06「clear 后红条残留」勘差):正常流中新提示符的
+            // 稳定行号严格大于一切旧书签;新 A 落在 ≤ 旧书签的行,说明那些行被
+            // clear/reset 回收重写 —— 书签指向的内容已不存在,连 ✗ 标记一起作废
+            // (⌘↑ 也不该跳到一片被清掉的空白)。scrollback 里更早的书签行号
+            // 更小,天然不受影响
+            marks.removeAll { $0.promptRow >= row }
             marks.append(CommandMark(promptRow: row))
             if marks.count > maxMarks { marks.removeFirst(marks.count - maxMarks) }
         case "B":
@@ -155,12 +161,17 @@ extension EventTerminalView {
         return text
     }
 
-    /// 当前视口内失败命令(exit≠0)的视口行号(✗ 荧光标记渲染用)
+    /// 当前视口内失败命令(exit≠0)的视口行号(✗ 荧光标记渲染用)。
+    /// ⚠️ 必须要求真跑过命令(有 C,即 outputStartRow):提示符上按 ⌃C 或
+    /// 空回车时 zsh 的 $? 保持上一条的非零值,precmd 照发 D;$? —— 那不是
+    /// "这一行的命令失败了"。2026-08-06 用户实测:⌃C 后连敲回车,每个空
+    /// 提示符行都长出一根红条,clear 也不消(叠加旧书签行号残留,已由 ingest
+    /// 的 A 剪枝根治)。判据与 ingest 里"空回车的 A..D 不通知"同源
     func failedCommandViewportRows() -> [Int] {
         let t = getTerminal()
         let top = t.getTopVisibleRow()
         return commandMarks.marks.compactMap { m in
-            guard let code = m.exitCode, code != 0 else { return nil }
+            guard let code = m.exitCode, code != 0, m.outputStartRow != nil else { return nil }
             let vr = linesIndex(of: m.promptRow) - top
             return (0..<t.rows).contains(vr) ? vr : nil
         }
