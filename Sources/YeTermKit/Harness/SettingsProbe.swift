@@ -286,6 +286,16 @@ public enum SettingsProbe {
         carried.bitRate = 300
         rateModel.load(config: carried)
         check("主题带速率 → 跟着生效", rateModel.bitRate == 300)
+        // ⑥ 机壳开关**跟着预设走**(2026-08-06 bug 修复):经典配色出厂显式 frameEnabled=false,
+        //    经典 CRT 是 nil(缺省开)—— 往返切换后 false 不许残留(load 直赋 ?? true)。
+        //    同上,用 load(config:) 直喂出厂值,不走 loadPreset(不依赖用户 override)
+        let frameModel = SettingsModel(from: Presets.byName("DEC VT220"))
+        frameModel.persistenceEnabled = false
+        check("经典 CRT 出厂机壳开", frameModel.frameEnabled)
+        frameModel.load(config: Presets.byName("Dracula") ?? CRTConfig())   // 经典配色:显式 false
+        check("切经典配色 → 机壳关(出厂显式 false)", !frameModel.frameEnabled)
+        frameModel.load(config: Presets.byName("DEC VT220") ?? CRTConfig()) // 切回:nil 必须回缺省开
+        check("切回经典 CRT → 机壳恢复开(false 不残留)", frameModel.frameEnabled)
         // ⑥ 波特率档位表:升序、无重复、首档为「不限速」、覆盖 110~10Mbps
         let rates = ByteRateLimiter.presetRates
         check("波特率档位表合法(16 档升序无重复)",

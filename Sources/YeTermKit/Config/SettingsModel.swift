@@ -153,7 +153,12 @@ final class SettingsModel: ObservableObject {
         glowingLine = c.glowingLine ?? glowingLine
         rgbShift = c.rgbShift ?? c.rbgShift ?? rgbShift
         ambientLight = c.ambientLight ?? ambientLight
-        frameEnabled = c.frameEnabled ?? frameEnabled
+        // 机壳开关是**预设携带字段,nil 回落缺省开、不回落当前值**(2026-08-06 bug 修复):
+        // 经典配色预设出厂显式带 frameEnabled=false(v1.4 统一"设备特征全关"),
+        // 经典 CRT 预设则不带(nil=缺省开)。若这里写 `?? frameEnabled`,
+        // 从经典配色切回经典 CRT 时上一套的 false 会残留,机壳被莫名关掉。
+        // (同 bitRate/ansiColorsHex 的"跟着预设走"处理,理由见下面 bitRate 那条注释)
+        frameEnabled = c.frameEnabled ?? true
         margin = c.margin ?? margin
         windowOpacity = c.windowOpacity ?? windowOpacity
         dividerStyle = c.dividerStyle ?? dividerStyle
@@ -238,8 +243,10 @@ final class SettingsModel: ObservableObject {
     /// v1.2 补丁勘差(用户实测"经典配色关 CRT 全都一样"):applyAndSave 把模型
     /// 全量快照写成 override,点过预设就有旧快照 —— 后续版本给内置预设新增的
     /// 身份数据(经典配色的 plain 三件套/官方 ANSI 表)和用户全局偏好(通知/
-    /// 背景图/机壳开关…)全被旧快照压住。改为白名单后:身份颜色与全局偏好
+    /// 背景图…)全被旧快照压住。改为白名单后:身份颜色与全局偏好
     /// 永远跟出厂(出厂 nil 的字段经 load 的 ?? 兜底自然保留用户当前偏好),
+    /// (机壳开关曾列在全局偏好里,2026-08-06 起改为**预设携带**:v1.4 经典配色
+    /// 出厂显式带 false,全局语义已被打破 —— load 里直赋 ?? true,详见那处注释)
     /// 未来新增字段默认免疫旧档。想自定义 ANSI/配色身份 →「复制当前」存自己的配置。
     func storedConfig(named name: String) -> CRTConfig? {
         if isBuiltin(name) {
