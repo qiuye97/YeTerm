@@ -20,6 +20,11 @@
 import Foundation
 import YeTermKit
 
+// AppKit 自带界面(文件选择器/标准按钮等)的语言在进程启动时就定死 ——
+// 必须赶在任何 AppKit/本地化被触碰之前,按「界面语言」设置同步好
+// AppleLanguages(详见 Localization.swift 的 syncAppleLanguagesOverride 注释)
+L10n.bootstrapProcessLanguage()
+
 // 【学】把参数交给 YeTermCLI.main 分发(它决定进 GUI 还是跑某个自测命令),
 //      返回值直接当进程退出码 —— 下一站请读 App/YeTermCLI.swift
 exit(YeTermCLI.main(CommandLine.arguments))

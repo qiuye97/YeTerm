@@ -1347,7 +1347,7 @@ private struct TerminalPage: View {
                 .labelsHidden()
                 .frame(width: 190)
             }
-            Text(L("切换后立刻生效,不用重启。终端里跑的程序输出什么语言,跟这个设置无关。"))
+            Text(L("切换后立刻生效,不用重启;文件选择器等系统对话框在下次启动后跟随。终端里跑的程序输出什么语言,跟这个设置无关。"))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

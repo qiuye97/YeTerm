@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 内嵌进可执行文件的最小 Info.plist(链接器 -sectcreate __TEXT __info_plist,
+     见 Package.swift)。只在**裸二进制运行**(swift run / .build 直跑)时被读取;
+     打包成 .app 后以 Contents/Info.plist 为准,这份自动失效。
+     用途:向 AppKit 声明本程序支持中文 —— 没有这份声明,裸二进制被钉死英文,
+     文件选择器等系统对话框在中文系统上也说英文(2026-08-06 用户实测;
+     make_app.sh 里同款三键的注释有完整背景)。 -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
+    <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
+    <key>CFBundleAllowMixedLocalizations</key><true/>
+</dict>
+</plist>

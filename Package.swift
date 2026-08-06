@@ -42,7 +42,20 @@ let package = Package(
         // 薄可执行壳:只做 CLI 分发
         .executableTarget(
             name: "YeTerm",
-            dependencies: ["YeTermKit"]
+            dependencies: ["YeTermKit"],
+            exclude: ["embedded-Info.plist"],
+            // 把最小 Info.plist 内嵌进可执行文件(裸二进制也有语言声明,
+            // `swift run` 时文件选择器等 AppKit 对话框才会说中文;打包后以
+            // .app 的 Contents/Info.plist 为准,内嵌份自动失效)。
+            // 【学】-sectcreate 是链接器指令:把一个文件原样塞进产物的指定段;
+            //   __TEXT,__info_plist 是 macOS 约定的"单文件程序的 Info.plist
+            //   藏身处"。路径相对包根(scripts/ 与手敲构建都从包根跑)。
+            linkerSettings: [.unsafeFlags([
+                "-Xlinker", "-sectcreate",
+                "-Xlinker", "__TEXT",
+                "-Xlinker", "__info_plist",
+                "-Xlinker", "Sources/YeTerm/embedded-Info.plist"
+            ])]
         ),
         // 全部实现在库里:M2 多窗口与单测都依赖这个结构
         .target(

@@ -279,7 +279,7 @@
 // ── Settings: terminal ──────────────────────────────────────────────────────
 "终端" = "Terminal";
 "界面语言" = "Language";
-"切换后立刻生效,不用重启。终端里跑的程序输出什么语言,跟这个设置无关。" = "Takes effect immediately, no restart needed. This only changes YeTerm's own interface — it has nothing to do with what language the programs running inside the terminal print.";
+"切换后立刻生效,不用重启;文件选择器等系统对话框在下次启动后跟随。终端里跑的程序输出什么语言,跟这个设置无关。" = "Takes effect immediately, no restart needed; system dialogs such as the file picker follow on the next launch. This has nothing to do with what language the programs running inside the terminal print.";
 "提示符主题" = "Prompt Theme";
 "不干预(用你自己的 p10k / starship)" = "Leave alone (keep your own p10k / starship)";
 "复古 ASCII" = "Retro ASCII";

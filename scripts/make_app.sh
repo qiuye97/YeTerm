@@ -64,8 +64,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
          Localizations 同时声明 en:英文系统上这些系统文案才会是英文
          (v1.5 开源:受众不再只有作者本人)。
          ⚠️ 这管的只是 **AppKit 自带**的那部分文案;YeTerm 自己的界面语言由
-         设置页「界面语言」控制(见 Sources/YeTermKit/Config/Localization.swift),
-         两者相互独立 —— 中文系统上选 English,我们的界面会变、AppKit 的不变。 -->
+         设置页「界面语言」控制(见 Sources/YeTermKit/Config/Localization.swift)。
+         2026-08-06 起两者不再独立:Localization 会把界面语言同步进 app 域的
+         AppleLanguages 覆盖项,AppKit 那半边(文件选择器等)也跟着设置走
+         (运行中切换要下次启动才生效)。本声明仍是前提 —— app 不声明支持的
+         语言,覆盖项写了也白写(裸二进制同理,见 Sources/YeTerm/embedded-Info.plist)。 -->
     <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
     <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
     <key>CFBundleAllowMixedLocalizations</key><true/>

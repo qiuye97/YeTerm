@@ -71,10 +71,47 @@ public final class L10n: ObservableObject {
     @Published public var language: AppLanguage {
         didSet {
             guard language != oldValue else { return }
+            // 先同步 AppleLanguages 再 resolve:.system 模式要先撤掉覆盖项,
+            // Locale.preferredLanguages 才有机会读到真正的系统语言
+            Self.syncAppleLanguagesOverride(for: language)
             resolved = Self.resolve(language)
             UserDefaults.standard.set(language.rawValue, forKey: Self.defaultsKey)
             NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
         }
+    }
+
+    // MARK: - AppKit 自带界面的语言跟随(2026-08-06 用户需求)
+
+    /// 把「界面语言」设置同步为进程的 `AppleLanguages` 偏好覆盖项。
+    ///
+    /// 背景:`L()` 只管 **YeTerm 自己写的**文案;文件选择器(NSOpenPanel)、标准
+    /// 按钮、标签页右键菜单这些 **AppKit 自带**的界面,语言由进程启动时的
+    /// AppleLanguages 偏好 × app 声明的语言列表决定,`L()` 够不着。用户实测:
+    /// 中文界面下打开背景图片选择器却是英文的。
+    /// 写 app 域的 AppleLanguages 覆盖项(faked "系统语言",只影响本 app)即可让
+    /// 这半边也跟随设置;`.system` = 删掉覆盖项回落真系统语言。
+    /// 三种组合已逐一实测(裸二进制/带声明 .app × 有无覆盖项,2026-08-06)。
+    ///
+    /// ⚠️ 两个已知边界:
+    /// ① AppKit 在进程启动时就把语言定死了 —— 启动最早处(main.swift)有一次
+    ///    bootstrap 同步,所以**每次启动都正确**;运行中途切换语言,系统对话框
+    ///    要下次启动才跟上(自家文案照旧热切换)。
+    /// ② `swift run` 的裸二进制必须有语言声明这套机制才生效 —— 已用链接器把
+    ///    最小 Info.plist 内嵌进可执行(见 Package.swift 的 linkerSettings 注释)。
+    private static func syncAppleLanguagesOverride(for lang: AppLanguage) {
+        switch lang {
+        case .zhHans:  UserDefaults.standard.set(["zh-Hans"], forKey: "AppleLanguages")
+        case .english: UserDefaults.standard.set(["en"], forKey: "AppleLanguages")
+        case .system:  UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        }
+    }
+
+    /// 进程启动最早处调用(main.swift,在任何 AppKit/本地化被触碰之前):
+    /// 按上次保存的「界面语言」写好 AppleLanguages,让**本次启动**的系统对话框
+    /// 就说对的语言。不走 `shared`(避免过早初始化单例的副作用顺序问题)。
+    public static func bootstrapProcessLanguage() {
+        let saved = UserDefaults.standard.string(forKey: defaultsKey)
+        syncAppleLanguagesOverride(for: saved.flatMap(AppLanguage.init(rawValue:)) ?? .zhHans)
     }
 
     /// 当前实际生效的语言
