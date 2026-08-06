@@ -174,11 +174,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                ?? windowControllers.first(where: { $0.window?.isKeyWindow == true }) {
             inheritedCwd = keyWC.currentWorkingDirectory
         }
-        let wc = TerminalWindowController(options: options, restoreLayout: restore?.layout,
+        let wc = TerminalWindowController(options: options, restoreState: restore,
                                           playBootScreen: playBoot, initialCwd: inheritedCwd)
-        // .automatic:⌘N 不被系统自动并标签(.preferred 会把所有新窗并组,M2 实测教训);
-        // 并组只走 ⌘T 的显式 addTabbedWindow,或用户手动拖拽
-        wc.window?.tabbingMode = .automatic
+        // 2026-08-06 起标签由窗口内自管(样式可定制),原生 window tabbing 一律禁掉
+        // (identifier 保留:探针按它过滤终端窗)
+        wc.window?.tabbingMode = .disallowed
         wc.window?.tabbingIdentifier = NSWindow.TabbingIdentifier("YeTermTerminal")
         if let f = restore?.frame, f.count == 4, let w = wc.window {
             // 存档 frame 仍落在某块屏幕上才用(外接显示器拔了别把窗口摆到看不见的地方)
@@ -213,38 +213,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return wc
     }
 
-    /// File → New Window(⌘N):强制独立窗口 ——
-    /// 显示瞬间禁并(防系统偏好「总是用标签」劫持),随后恢复 .automatic 允许手动拖并
+    /// File → New Window(⌘N):独立窗口(原生并标签已全局禁用,无需再防劫持)
     @objc func newWindowAction(_ sender: Any?) {
         let wc = makeWindow()
-        wc.window?.tabbingMode = .disallowed
         wc.showWindow(nil)
-        DispatchQueue.main.async {
-            wc.window?.tabbingMode = .automatic
-        }
     }
 
-    /// File → New Tab(⌘T);也响应标签栏/标签总览的 "+" 按钮(newWindowForTab)
+    /// File → New Tab(⌘T):在当前 key 终端窗里建**窗口内标签**(2026-08-06 起
+    /// 弃用原生 addTabbedWindow —— 每标签一扇窗的模式样式完全不可定制);
+    /// 没有终端窗在前台就退化成开新窗
     @objc func newTabAction(_ sender: Any?) {
-        // anchor 只认自己管理的终端窗(v1.2 补丁用户实测崩溃):「显示所有
-        // 标签页」总览期间 keyWindow 是系统的标签选取器窗,往它上面
-        // addTabbedWindow 直接抛 AppKit 异常崩溃 —— 逐级回落到合法终端窗
-        let anchor = (NSApp.keyWindow?.windowController as? TerminalWindowController)?.window
-            ?? (NSApp.mainWindow?.windowController as? TerminalWindowController)?.window
-            ?? windowControllers.last?.window
-        guard let anchor else {
+        let target = (NSApp.keyWindow?.windowController as? TerminalWindowController)
+            ?? (NSApp.mainWindow?.windowController as? TerminalWindowController)
+            ?? windowControllers.last
+        guard let target else {
             newWindowAction(sender)
             return
         }
-        // 总览态的窗口不接受并标签(AppKit 限制)—— 先退出总览再加
-        if let group = anchor.tabGroup, group.isOverviewVisible {
-            group.isOverviewVisible = false
-        }
-        let wc = makeWindow()
-        if let w = wc.window {
-            anchor.addTabbedWindow(w, ordered: .above)
-            w.makeKeyAndOrderFront(nil)
-        }
+        // ⌘T 继承目录(v1.2 #8 同语义):新标签从当前聚焦 shell 的 cwd 出发
+        let cwd = settingsModel.inheritCwd ? target.currentWorkingDirectory : nil
+        target.newTab(cwd: cwd)
     }
 
     @objc func newWindowForTab(_ sender: Any?) {
@@ -390,6 +378,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FontLibrary.registerBundledFonts()   // 内置 13 款复古字体(进程级,无需安装)
+        // 2026-08-06:标签改窗口内自管(样式可定制),系统级窗口并标签整个关掉
+        // (顺带 AppKit 不再往「窗口」菜单自动塞英文的 Show All Tabs 等项)
+        NSWindow.allowsAutomaticWindowTabbing = false
         NSApp.mainMenu = MainMenu.build(themeMenuDelegate: self)
         // 切换界面语言时重建菜单栏。SwiftUI 那半边(设置页)自己会响应式重画,
         // AppKit 这半边是命令式的,菜单项标题在 build 时就固化了 —— 只能整个重建。

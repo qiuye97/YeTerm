@@ -30,7 +30,21 @@ public struct SessionState: Codable {
     public struct WindowState: Codable {
         /// [x, y, w, h](AppKit 屏幕坐标)
         public var frame: [Double]
+        /// 活动标签的布局树。多标签时代(2026-08-06 起)保留这个字段一是旧档
+        /// 兼容(旧档只有它),二是降级兼容(老版本读新档仍能还原活动标签)
         public var layout: LayoutNode
+        /// 全部标签的布局树(v1.6 窗口内多标签;nil = 旧档,单标签)
+        public var tabs: [LayoutNode]?
+        /// 活动标签下标(nil = 0)
+        public var activeTab: Int?
+
+        public init(frame: [Double], layout: LayoutNode,
+                    tabs: [LayoutNode]? = nil, activeTab: Int? = nil) {
+            self.frame = frame
+            self.layout = layout
+            self.tabs = tabs
+            self.activeTab = activeTab
+        }
     }
 
     public var version = 1

@@ -18,6 +18,9 @@
 "文件" = "File";
 "新建窗口" = "New Window";
 "新建标签页" = "New Tab";
+"关闭标签页" = "Close Tab";
+"标签页 %d" = "Tab %d";
+"新建标签页(⌘T)" = "New Tab (⌘T)";
 "导出 CRT 截图" = "Export CRT Screenshot";
 "录制 GIF(开始/停止)" = "Record GIF (Start/Stop)";
 "关闭窗口" = "Close Window";

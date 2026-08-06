@@ -60,18 +60,53 @@ public enum WindowProbe {
         let maxGroupAfterN = termWindows().map { $0.tabGroup?.windows.count ?? 1 }.max() ?? 1
         check("⌘N 是独立窗口(未被并组)", maxGroupAfterN <= 1, detail: "maxGroup=\(maxGroupAfterN)")
 
+        // 2026-08-06 起 ⌘T = **窗口内标签**(原生 window tabbing 已弃用):
+        // 窗口数不变,key 窗的 tabs 多一页且成为活动页
         delegate.newTabAction(nil)
         pump(0.6)
-        let windows = termWindows()
-        check("⌘T 后 3 个终端会话", windows.count == 3, detail: "count=\(windows.count)")
-        let grouped = windows.first { ($0.tabGroup?.windows.count ?? 0) == 2 }
-        check("⌘T 并入恰 2 窗的标签分组", grouped != nil,
-              detail: "groups=\(Set(windows.map { $0.tabGroup?.windows.count ?? 1 }))")
+        check("⌘T 后窗口数不变(仍 2)", termWindows().count == 2,
+              detail: "count=\(termWindows().count)")
+        let tabbedWC = NSApp.windows
+            .compactMap { $0.windowController as? TerminalWindowController }
+            .first { $0.tabs.count == 2 }
+        check("⌘T 在窗口内建出第 2 个标签", tabbedWC != nil)
+        check("新标签成为活动标签", tabbedWC?.activeTabIndex == 1,
+              detail: "active=\(tabbedWC?.activeTabIndex ?? -1)")
+        check("每个标签一个 pane、共 2 个 shell", tabbedWC?.panes.count == 2,
+              detail: "panes=\(tabbedWC?.panes.count ?? -1)")
+        // ── 标签栏双样式(2026-08-06):机壳生效 = CRT 盒绘条;否则液态玻璃条 ──
+        // 先把样式判定的前提钉死(别的机器上用户配置可能关着 CRT/机壳)
+        delegate.settingsModel.crtEffectsEnabled = true
+        delegate.settingsModel.frameEnabled = true
+        pump(0.5)
+        check("机壳生效时盒绘标签条上屏", tabbedWC?.crtTabBarVisibleForTesting == true)
+        let tabBarShot = NSTemporaryDirectory() + "yeterm-window-probe-tabbar.png"
+        _ = tabbedWC?.overlayForTesting?.dumpFrame(to: tabBarShot)
+        print("frame: \(tabBarShot)")
+        delegate.settingsModel.crtEffectsEnabled = false
+        pump(0.5)
+        check("普通模式切液态玻璃标签条",
+              tabbedWC?.glassTabBarVisibleForTesting == true
+                  && tabbedWC?.crtTabBarVisibleForTesting != true)
+        let glassShot = NSTemporaryDirectory() + "yeterm-window-probe-glassbar.png"
+        _ = tabbedWC?.overlayForTesting?.dumpFrame(to: glassShot)
+        print("frame: \(glassShot)")
+        delegate.settingsModel.crtEffectsEnabled = true
+        pump(0.5)
+        check("CRT 恢复后回盒绘条", tabbedWC?.crtTabBarVisibleForTesting == true)
 
-        // 关一个标签 → 会话应回收
-        grouped?.tabGroup?.selectedWindow?.close()
+        // ⌘1 直达切回第 1 页
+        tabbedWC?.selectTab(0)
+        pump(0.3)
+        check("selectTab(0) 切回第 1 页", tabbedWC?.activeTabIndex == 0)
+        check("切回后活动 pane 只剩标签 1 的", tabbedWC?.activePanes.count == 1)
+        // 关掉后台那页 → shell 终止、标签回收
+        tabbedWC?.closeTab(at: 1)
         pump(0.6)
-        check("关标签后剩 2 个会话", termWindows().count == 2, detail: "count=\(termWindows().count)")
+        check("关标签后剩 1 页", tabbedWC?.tabs.count == 1,
+              detail: "tabs=\(tabbedWC?.tabs.count ?? -1)")
+        check("窗口仍在(关的是标签不是窗)", termWindows().count == 2,
+              detail: "count=\(termWindows().count)")
 
         // ---- 分屏(M2 后半) ----
         guard let wc = (NSApp.windows.compactMap { $0.windowController as? TerminalWindowController }).first else {

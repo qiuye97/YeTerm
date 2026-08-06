@@ -48,7 +48,12 @@ enum MainMenu {
         fileMenu.addItem(withTitle: L("导出 CRT 截图"), action: Selector(("exportScreenshotAction:")), keyEquivalent: "S")
         fileMenu.addItem(withTitle: L("录制 GIF(开始/停止)"), action: Selector(("toggleGIFRecordingAction:")), keyEquivalent: "R")
         fileMenu.addItem(.separator())
-        fileMenu.addItem(withTitle: L("关闭窗口"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        // ⌘W 语义(2026-08-06 窗口内多标签):先关标签,最后一个标签才关窗
+        // (Terminal.app 惯例);⇧⌘W 永远整窗(全部标签一起,关机动画照旧)
+        fileMenu.addItem(withTitle: L("关闭标签页"), action: Selector(("closeTabAction:")), keyEquivalent: "w")
+        let closeWin = fileMenu.addItem(withTitle: L("关闭窗口"),
+                                        action: #selector(NSWindow.performClose(_:)), keyEquivalent: "W")
+        closeWin.keyEquivalentModifierMask = [.command, .shift]
         fileItem.submenu = fileMenu
         main.addItem(fileItem)
 
@@ -127,26 +132,27 @@ enum MainMenu {
         main.addItem(serverItem)
 
         // ── 窗口 ──
-        // 标签页相关项**显式中文自建**(v1.2 补丁用户实测:不建的话 AppKit 会往
-        // windowsMenu 自动插一套英文的 Show All Tabs / Merge All Windows 等 ——
-        // 它按 action 查重,菜单里已有同 action 的项就不再插英文版)
+        // 标签页项自建(2026-08-06 起标签由窗口内自管,原生 window tabbing 已弃用;
+        // AppDelegate 里 allowsAutomaticWindowTabbing=false,AppKit 不再往这里
+        // 自动插英文的 Show All Tabs / Merge All Windows 等)
         let windowItem = NSMenuItem()
         let windowMenu = NSMenu(title: L("窗口"))
         windowMenu.addItem(withTitle: L("最小化"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(.separator())
         let nextTab = windowMenu.addItem(withTitle: L("显示下一个标签页"),
-                                         action: #selector(NSWindow.selectNextTab(_:)), keyEquivalent: "\t")
+                                         action: Selector(("nextTabAction:")), keyEquivalent: "\t")
         nextTab.keyEquivalentModifierMask = [.control]
         let prevTab = windowMenu.addItem(withTitle: L("显示上一个标签页"),
-                                         action: #selector(NSWindow.selectPreviousTab(_:)), keyEquivalent: "\t")
+                                         action: Selector(("previousTabAction:")), keyEquivalent: "\t")
         prevTab.keyEquivalentModifierMask = [.control, .shift]
-        let overview = windowMenu.addItem(withTitle: L("显示所有标签页"),
-                                          action: #selector(NSWindow.toggleTabOverview(_:)), keyEquivalent: "\\")
-        overview.keyEquivalentModifierMask = [.command, .shift]
-        windowMenu.addItem(withTitle: L("将标签页移到新窗口"),
-                           action: #selector(NSWindow.moveTabToNewWindow(_:)), keyEquivalent: "")
-        windowMenu.addItem(withTitle: L("合并所有窗口"),
-                           action: #selector(NSWindow.mergeAllWindows(_:)), keyEquivalent: "")
+        // ⌘1~⌘9 直达第 N 个标签页(用户需求;tag = 目标下标,validate 按标签数启停)
+        windowMenu.addItem(.separator())
+        for n in 1...9 {
+            let item = windowMenu.addItem(withTitle: Lf("标签页 %d", n),
+                                          action: Selector(("selectTabNumberAction:")),
+                                          keyEquivalent: "\(n)")
+            item.tag = n - 1
+        }
         windowMenu.addItem(.separator())
         windowMenu.addItem(withTitle: L("前置全部窗口"),
                            action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")

@@ -239,6 +239,13 @@ final class MetalOverlayView: MTKView {
         return o
     }
 
+    // ---- CRT 盒绘标签条(2026-08-06):荧光屏顶部,机壳样式的窗口内标签栏 ----
+    // 控制器持有(strong),这里 weak 引用防环;frame 由控制器布局时算好经闭包供给
+    weak var tabStrip: TabStripController?
+    var tabStripFrameProvider: (() -> CGRect?)?
+
+    func makeTabStrip() -> TabStripController { TabStripController(ctx: mtl) }
+
     // ---- 粘贴确认面板(v1.2 #6,v1.3 改 OSD 同款画布合成) ----
     private(set) var pasteGuardController: PasteGuardController?
 
@@ -852,6 +859,19 @@ final class MetalOverlayView: MTKView {
                     offset += seg + gap
                 }
             }
+        }
+
+        // CRT 盒绘标签条(2026-08-06):荧光屏顶部,与内容同过 CRT ——
+        // 吃染色/扫描线/辉光,跟着屏幕鼓弧度、被机壳裁切(用户点名要的"屏内"质感)
+        if let strip = tabStrip, let rect = tabStripFrameProvider?(),
+           let f = focused ?? sources.first?.view,
+           let stripTex = strip.render(font: f.font, scale: scale) {
+            let sx = (rect.minX * scale).rounded()
+            let sy = ((bounds.height - rect.maxY) * scale).rounded()
+            draws.append((stripTex, MTLViewport(originX: max(0, sx), originY: max(0, sy),
+                                                width: Double(stripTex.width),
+                                                height: Double(stripTex.height),
+                                                znear: 0, zfar: 1)))
         }
 
         // OSD 面板(v1.2 #14):画面正中,和内容一起过 CRT(真显示器 OSD 的质感)
