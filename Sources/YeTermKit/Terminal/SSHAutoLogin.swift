@@ -139,7 +139,7 @@ final class SSHAutoLogin {
             guard out.count < lines, let line = t.getLine(row: row) else { continue }
             var s = ""
             for col in 0..<t.cols {
-                let ch = line[col].getCharacter()
+                let ch = t.getCharacter(for: line[col])
                 if ch != "\u{0}" { s.append(ch) }
             }
             // 去掉行尾填充空格:折行的下一行才能无缝接上
@@ -156,7 +156,7 @@ final class SSHAutoLogin {
             guard let line = t.getLine(row: row) else { continue }
             var s = ""
             for col in 0..<t.cols {
-                let ch = line[col].getCharacter()
+                let ch = t.getCharacter(for: line[col])
                 if ch != "\u{0}" { s.append(ch) }
             }
             let trimmed = s.trimmingCharacters(in: .whitespaces)

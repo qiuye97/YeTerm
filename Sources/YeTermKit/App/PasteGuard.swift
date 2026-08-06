@@ -106,7 +106,7 @@ final class PasteGuardController {
         for row in 0..<terminal.rows {
             guard let line = terminal.getLine(row: row) else { continue }
             for c in 0..<terminal.cols {
-                let ch = line[c].getCharacter()
+                let ch = terminal.getCharacter(for: line[c])
                 if ch != "\u{0}" { out.append(ch) }
             }
         }

@@ -81,7 +81,7 @@ public enum DemoGIF {
                 guard let line = t.getLine(row: row) else { continue }
                 var s = ""
                 for col in 0..<t.cols {
-                    let ch = line[col].getCharacter()
+                    let ch = t.getCharacter(for: line[col])
                     if ch != "\0" { s.append(ch) }
                 }
                 let trimmed = s.trimmingCharacters(in: .whitespaces)

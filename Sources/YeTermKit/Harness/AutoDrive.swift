@@ -43,7 +43,7 @@ public enum AutoDrive {
                 guard let line = t.getLine(row: row) else { continue }
                 var s = ""
                 for col in 0..<t.cols {
-                    let ch = line[col].getCharacter()
+                    let ch = t.getCharacter(for: line[col])
                     if ch != "\0" { s.append(ch) }
                 }
                 let trimmed = s.trimmingCharacters(in: .whitespaces)
@@ -192,7 +192,7 @@ public enum AutoDrive {
         for row in (0..<terminal.rows).reversed() {           // 从底往上找最近一处
             guard let line = terminal.getLine(row: row) else { continue }
             var text = ""
-            for c in 0..<terminal.cols { text.append(line[c].getCharacter()) }
+            for c in 0..<terminal.cols { text.append(terminal.getCharacter(for: line[c])) }
             if let r = text.range(of: "https://example.com/yeterm") {
                 linkPos = (row, text.distance(from: text.startIndex, to: r.lowerBound))
                 break
@@ -267,7 +267,7 @@ public enum AutoDrive {
         for row in 0..<tv.getTerminal().rows {
             guard let line = tv.getTerminal().getLine(row: row) else { continue }
             var text = ""
-            for c in 0..<tv.getTerminal().cols { text.append(line[c].getCharacter()) }
+            for c in 0..<tv.getTerminal().cols { text.append(tv.getTerminal().getCharacter(for: line[c])) }
             if text.contains("PROMPT2") { prompt2Row = row; break }
         }
         if fails.count == 1 && fails.first == prompt2Row && prompt2Row >= 0 {
@@ -403,7 +403,7 @@ public enum AutoDrive {
             var out = ""
             for row in 0..<tv.getTerminal().rows {
                 guard let line = tv.getTerminal().getLine(row: row) else { continue }
-                for c in 0..<tv.getTerminal().cols { out.append(line[c].getCharacter()) }
+                for c in 0..<tv.getTerminal().cols { out.append(tv.getTerminal().getCharacter(for: line[c])) }
             }
             return out
         }
@@ -599,7 +599,7 @@ public enum AutoDrive {
         for row in (0..<tv.getTerminal().rows).reversed() {
             guard let line = tv.getTerminal().getLine(row: row) else { continue }
             var text = ""
-            for c in 0..<tv.getTerminal().cols { text.append(line[c].getCharacter()) }
+            for c in 0..<tv.getTerminal().cols { text.append(tv.getTerminal().getCharacter(for: line[c])) }
             if let r = text.range(of: probeFile + ":12"), !text.contains("echo") {
                 pathPos = (row, text.distance(from: text.startIndex, to: r.lowerBound))
                 break
@@ -847,7 +847,7 @@ public enum AutoDrive {
                 guard let line = t.getLine(row: row) else { continue }
                 var s = ""
                 for col in 0..<t.cols {
-                    let ch = line[col].getCharacter()
+                    let ch = t.getCharacter(for: line[col])
                     if ch != "\0" { s.append(ch) }
                 }
                 let trimmed = s.trimmingCharacters(in: .whitespaces)
@@ -972,7 +972,7 @@ public enum AutoDrive {
             for row in 0..<t.rows {
                 guard let line = t.getLine(row: row) else { continue }
                 for c in 0..<t.cols {
-                    let ch = line[c].getCharacter()
+                    let ch = t.getCharacter(for: line[c])
                     if ch != "\u{0}" { all.append(ch) }
                 }
             }
@@ -1000,7 +1000,7 @@ public enum AutoDrive {
                 for row in 0..<t.rows {
                     guard let line = t.getLine(row: row) else { continue }
                     for c in 0..<t.cols {
-                        let ch = line[c].getCharacter()
+                        let ch = t.getCharacter(for: line[c])
                         if ch != "\u{0}" { all.append(ch) }
                     }
                 }
@@ -1054,7 +1054,7 @@ public enum AutoDrive {
                 for row in 0..<t.rows {
                     guard let line = t.getLine(row: row) else { continue }
                     for c in 0..<t.cols {
-                        let ch = line[c].getCharacter()
+                        let ch = t.getCharacter(for: line[c])
                         if ch != "\u{0}" { out.append(ch) }
                     }
                 }
@@ -1174,7 +1174,7 @@ public enum AutoDrive {
             var n = 0
             for row in 0..<t.rows {
                 guard let line = t.getLine(row: row) else { continue }
-                for col in 0..<t.cols where line[col].getCharacter() == ch {
+                for col in 0..<t.cols where t.getCharacter(for: line[col]) == ch {
                     n += 1
                 }
             }

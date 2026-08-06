@@ -31,17 +31,23 @@ public enum TermProbe {
         // 1: CJK
         // 2: SGR 颜色(16 色 / 256 色 / 真彩)
         // 3: 样式(粗体)
+        // 4: 非 BMP 字符(第 15 平面 Nerd 图标 U+F0737 + 第 1 平面 emoji)
         let payload = "ASCII abc 123\r\n"
             + "你好，世界\r\n"
             + "\u{1b}[31mR\u{1b}[0m \u{1b}[38;5;196mC\u{1b}[0m \u{1b}[38;2;18;52;86mT\u{1b}[0m\r\n"
-            + "\u{1b}[1mB\u{1b}[0m plain"
+            + "\u{1b}[1mB\u{1b}[0m plain\r\n"
+            + "\u{F0737}i\u{1F600}"
         terminal.feed(text: payload)
 
-        // ---- 网格 dump(前 4 行的非空格) ----
+        // ---- 网格 dump(前 5 行的非空格) ----
         // 注:CharData.code 是 internal;公开 API 判 filler 用 width == 0
         // (宽字符本体 width==2,其后补位格 width==0,普通格 width==1)
-        print("== grid dump (rows 0-3) ==")
-        for row in 0..<4 {
+        // ⚠️ 解码一律走 terminal.getCharacter(for:)(带侧表):非 BMP 字符
+        // (UTF-16 双码元)在 CharData.code 里存的是侧表索引而非码位,
+        // cd.getCharacter() 无上下文只能还原出空格 —— 2026-08-06「p10k 图标
+        // 󰜷 空白」事故的根因,全仓已统一,新代码勿再用无上下文版本
+        print("== grid dump (rows 0-4) ==")
+        for row in 0..<5 {
             guard let line = terminal.getLine(row: row) else { continue }
             for col in 0..<terminal.cols {
                 let cd = line[col]
@@ -52,7 +58,7 @@ public enum TermProbe {
                     }
                     continue
                 }
-                let ch = cd.getCharacter()
+                let ch = terminal.getCharacter(for: cd)
                 // 空白格:真空格或从未写过的格(getCharacter() 返回 NUL)
                 if ch == " " || ch == "\0" { continue }
                 print("row=\(row) col=\(col) ch='\(ch)' width=\(cd.width) fg=\(describe(cd.attribute.fg)) style=\(describeStyle(cd.attribute.style))")
@@ -69,13 +75,13 @@ public enum TermProbe {
         // 1) 宽字符:row1 col0 = '你' width 2;col1 = filler(code 0)
         if let l1 = terminal.getLine(row: 1) {
             let ni = l1[0]
-            check("CJK 宽字符 width==2", ni.getCharacter() == "你" && ni.width == 2,
-                  detail: "ch='\(ni.getCharacter())' width=\(ni.width)")
+            check("CJK 宽字符 width==2", terminal.getCharacter(for: ni) == "你" && ni.width == 2,
+                  detail: "ch='\(terminal.getCharacter(for: ni))' width=\(ni.width)")
             check("宽字符尾随 filler(width==0)", l1[1].width == 0,
                   detail: "width=\(l1[1].width)")
             // '好' 应落在 col2(每个 CJK 占 2 列)
-            check("列推进正确('好'在 col2)", l1[2].getCharacter() == "好",
-                  detail: "col2='\(l1[2].getCharacter())'")
+            check("列推进正确('好'在 col2)", terminal.getCharacter(for: l1[2]) == "好",
+                  detail: "col2='\(terminal.getCharacter(for: l1[2]))'")
         } else {
             check("row1 可读", false)
         }
@@ -87,7 +93,7 @@ public enum TermProbe {
             for col in 0..<terminal.cols {
                 let cd = l2[col]
                 guard cd.width != 0 else { continue }
-                let ch = cd.getCharacter()
+                let ch = terminal.getCharacter(for: cd)
                 switch ch {
                 case "R":
                     if case .ansi256(let code) = cd.attribute.fg { found16 = (code == 1); default16 = "ansi256(\(code))" }
@@ -114,7 +120,7 @@ public enum TermProbe {
             var boldOK = false
             for col in 0..<terminal.cols {
                 let cd = l3[col]
-                if cd.width != 0, cd.getCharacter() == "B" {
+                if cd.width != 0, terminal.getCharacter(for: cd) == "B" {
                     boldOK = cd.attribute.style.contains(.bold)
                     break
                 }
@@ -122,6 +128,24 @@ public enum TermProbe {
             check("样式位 bold 可读", boldOK)
         } else {
             check("row3 可读", false)
+        }
+
+        // 4) 非 BMP 字符经侧表还原(2026-08-06「p10k 图标空白」回归断言):
+        //    SwiftTerm 对 UTF-16 双码元字符不存码位、存侧表索引,解码必须走
+        //    terminal.getCharacter(for:)。此前渲染器用 cd.getCharacter() 把
+        //    第 15 平面 Nerd 图标(󰜷 U+F0737)整格丢成空格 → 屏幕空白
+        if let l4 = terminal.getLine(row: 4) {
+            let icon = l4[0]
+            check("Nerd 图标(U+F0737)侧表解码 + width==1",
+                  terminal.getCharacter(for: icon) == "\u{F0737}" && icon.width == 1,
+                  detail: "ch=U+\(String(terminal.getCharacter(for: icon).unicodeScalars.first?.value ?? 0, radix: 16, uppercase: true)) width=\(icon.width)")
+            // emoji(U+1F600)在 'i' 之后:col2 起、宽 2 + filler
+            let emoji = l4[2]
+            check("emoji(U+1F600)侧表解码 + width==2",
+                  terminal.getCharacter(for: emoji) == "\u{1F600}" && emoji.width == 2,
+                  detail: "ch=U+\(String(terminal.getCharacter(for: emoji).unicodeScalars.first?.value ?? 0, radix: 16, uppercase: true)) width=\(emoji.width)")
+        } else {
+            check("row4 可读", false)
         }
 
         print(pass ? "SMOKE-PASS" : "SMOKE-FAIL")

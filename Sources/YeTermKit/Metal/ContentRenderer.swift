@@ -467,7 +467,11 @@ final class ContentRenderer {
                                              color: .init(bg, 1)))
             }
 
-            let chr = cd.getCharacter()
+            // ⚠️ 必须走 terminal 带侧表的解码(2026-08-06「p10k 图标 󰜷 空白」根修):
+            // SwiftTerm 对非 BMP 字符(UTF-16 双码元 —— 第 15/16 平面 Nerd 图标、
+            // emoji)不存码位,CharData.code 里是侧表索引(0x400001 起);
+            // cd.getCharacter() 无上下文还原不出来、兜底返回空格 → 整格被当空白跳过
+            let chr = terminal.getCharacter(for: cd)
             if chr != " " && chr != "\0" && !attr.style.contains(.invisible) {
                 if let slot = atlas.slot(text: String(chr), wide: wide,
                                          bold: attr.style.contains(.bold),
