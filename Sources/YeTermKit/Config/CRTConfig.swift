@@ -279,7 +279,11 @@ public struct CRTConfig: Codable {
         // 1.2 displayTerminalFrame 条件 × YeTerm 机壳总开关(2026-07-28 用户实测:
         // frameMargin 恒 0.2 使机壳恒开,弧度调 0 四角暗角/阴影仍在且无处可关 →
         // 屏幕页暴露开关,关=整层消失;缺省开=原版观感不变)
-        u.frameOn = (frameEnabled ?? true) && (fSizeRaw > 0 || (screenCurvature ?? 0) > 0) ? 1 : 0
+        // 屏幕弧度>0 时机壳**强制开**(2026-08-06 用户裁决):弧度把屏幕四角鼓成
+        // 弧形,没机壳包边就是四角残缺的怪相 —— 此时忽略 frameEnabled(设置页
+        // 开关同步灰掉)。frameEnabled 本身不动:弧度归零后回到用户原选择。
+        let curveOn = (screenCurvature ?? 0) > 0
+        u.frameOn = ((frameEnabled ?? true) || curveOn) && (fSizeRaw > 0 || curveOn) ? 1 : 0
         let fgRaw = Self.strToColor(fontColor) ?? SIMD3<Float>(1, 1, 1)
         let bgRaw = Self.strToColor(backgroundColor) ?? SIMD3<Float>(0, 0, 0)
         let baseFrame = Self.strToColor(frameColor) ?? SIMD3<Float>(1, 1, 1)   // _staticFrameColor 默认 #fff

@@ -217,6 +217,7 @@
 "屏幕弧度" = "Screen Curvature";
 "机壳边框" = "Bezel";
 "四角暗角、屏内边缘阴影与机壳反射" = "Corner vignetting, inner edge shadow and case reflections";
+"屏幕弧度开启时机壳自动开启(弧形四角需要机壳包边)" = "Enabled automatically while screen curvature is on (the curved corners need the bezel around them)";
 "分屏分割线" = "Split Divider";
 "实线" = "Solid";
 "虚线段" = "Dashed";

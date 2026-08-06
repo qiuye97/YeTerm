@@ -1043,13 +1043,25 @@ private struct ScreenPage: View {
             }
             EffectRow(title: L("屏幕弧度"), value: $model.curvature, stashKey: "curvature",
                       defaultOn: 0.3, model: model)
-            // 机壳边框开关(2026-07-28 用户实测:此前机壳恒开、四角暗角无处可关)
+            // 机壳边框开关(2026-07-28 用户实测:此前机壳恒开、四角暗角无处可关)。
+            // 屏幕弧度>0 时强制开+灰掉(2026-08-06 用户裁决,与 CRTConfig.apply 的
+            // frameOn 联动同一条规则):开关**显示**为开但不改 frameEnabled 存值,
+            // 弧度归零后恢复用户原选择。
+            // 【学】Binding(get:set:) 是手写的"计算属性版"双向绑定:显示值可以和
+            //      存储值不同(这里 get 把弧度锁定叠加进去),类比 Vue 的 computed
+            //      带 getter/setter。
             HStack {
                 Text(L("机壳边框")).frame(width: 92, alignment: .leading)
-                Toggle("", isOn: $model.frameEnabled)
+                Toggle("", isOn: Binding(
+                    get: { model.frameEnabled || model.curvature > 0 },
+                    set: { model.frameEnabled = $0 }
+                ))
                     .toggleStyle(.switch)
                     .labelsHidden()
-                Text(L("四角暗角、屏内边缘阴影与机壳反射"))
+                    .disabled(model.curvature > 0)
+                Text(model.curvature > 0
+                     ? L("屏幕弧度开启时机壳自动开启(弧形四角需要机壳包边)")
+                     : L("四角暗角、屏内边缘阴影与机壳反射"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

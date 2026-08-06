@@ -33,6 +33,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private(set) var panes: [TerminalPane] = []
     private(set) var overlay: MetalOverlayView?
     private var resignKeyObserver: NSObjectProtocol?
+    // 标签栏出现/消失时 contentLayoutRect 变高变矮但窗口 frame 不变,不会触发
+    // 布局回调 —— KVO 盯着它,变了就重排(文字区顶部让位要跟着标签栏走)
+    private var contentLayoutObserver: NSKeyValueObservation?
     private var isPoweringOff = false   // 关机动画进行中(防重复触发;动画放完真正 close)
     private var searchBar: SearchBarView?
     // 搜索目标 pane 在打开搜索时锁定:搜索框抢走 firstResponder 后
@@ -68,11 +71,19 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         override func layout() {
             super.layout()
             let inset = min(marginInset, min(bounds.width, bounds.height) / 4)
-            splitHost?.frame = bounds.insetBy(dx: inset, dy: inset)
+            // 标题栏(红绿灯条)高度(2026-08-06 用户需求:画面延伸到窗顶):窗口是
+            // fullSizeContentView,本视图铺满整窗含标题栏区;contentLayoutRect 是
+            // AppKit 扣掉标题栏+标签栏后的"安全区"。文字区(splitHost)顶部额外
+            // 让出这一条 —— 文字落点与改造前完全一致;机壳/背景(overlay)则照铺
+            // 到窗顶,透出到透明标题栏下面。
+            let topBar = max(0, bounds.height - (window?.contentLayoutRect.height ?? bounds.height))
+            splitHost?.frame = NSRect(x: inset, y: inset,
+                                      width: bounds.width - inset * 2,
+                                      height: bounds.height - inset * 2 - topBar)
             overlayView?.frame = bounds
             if let bar = searchBarView {
                 let w: CGFloat = min(330, bounds.width - 24)
-                bar.frame = NSRect(x: bounds.maxX - w - 14, y: bounds.maxY - 34 - 12,
+                bar.frame = NSRect(x: bounds.maxX - w - 14, y: bounds.maxY - topBar - 34 - 12,
                                    width: w, height: 34)
             }
         }
@@ -90,11 +101,19 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         self.options = options
         self.initialCwd = initialCwd
         let rect = NSRect(x: 0, y: 0, width: 960, height: 600)
+        // fullSizeContentView + 透明标题栏(2026-08-06 用户需求):内容视图铺满
+        // 整窗含标题栏区,CRT 机壳/背景色/背景图一直画到窗顶,红绿灯悬浮在画面
+        // 上(有机壳=壳延伸到红绿灯下;无机壳=红绿灯条即背景色,浑然一体)。
+        // 文字区不受影响 —— RootView.layout 按 contentLayoutRect 给顶部让位。
+        // 【学】styleMask 是窗口的"外观开关集合",fullSizeContentView 表示内容
+        //      延伸到标题栏下面(类比 Web 的沉浸式全出血布局 + 悬浮导航条)。
         let window = NSWindow(contentRect: rect,
-                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable,
+                                          .fullSizeContentView],
                               backing: .buffered,
                               defer: false)
         window.title = "YeTerm"
+        window.titlebarAppearsTransparent = true
         // 窗口底色纯黑:CRT 首帧就绪前(慢机器上着色器编译几百 ms)的空窗期
         // 显示为"未通电的显像管",与开机动画无缝衔接,杜绝原生画面/白底闪现
         window.backgroundColor = .black
@@ -169,6 +188,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         if let op = options.config?.windowOpacity {
             applyWindowOpacity(op)
+        }
+
+        // 【学】KVO(Key-Value Observing)= AppKit 世代的属性监听,类比 Vue 的
+        //      watch;observe 返回的凭据对象释放时自动解除监听,存成属性保活。
+        contentLayoutObserver = window.observe(\.contentLayoutRect) { [weak self] _, _ in
+            self?.root.needsLayout = true
         }
 
         // 窗口失去 key 时终结未提交的 IME 组合(防输入法粘连,M0 事故的教训)
@@ -843,6 +868,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // 颜色系统切换(v1.2 用户裁决):CRT=crterm 专属调色板;普通=Terminal.app
         // 式独立配色。AnsiColor 表变了 → 行缓存全失效重建(旧色残留会串台)
         let crtOn = cfg.crtEffectsEnabled ?? true
+        // 标题栏透明后(2026-08-06),标题文字/红绿灯直接压在终端画面上 —— 外观
+        // 明暗必须跟着**实际背景**走:白底主题(Mac 128K/E-Ink…)若维持深色外观,
+        // 浅灰标题字会隐形。取染色后的真实背景(CRT=contrast 预混;普通=独立配色),
+        // 亮度公式与 CRTConfig 白热化判定同源(Rec.709 加权)。
+        let crtBg = cfg.effectiveColors().background
+        let bgc = crtOn ? SIMD3(crtBg.x, crtBg.y, crtBg.z) : cfg.plainPalette().bg
+        let bgLum = 0.21 * bgc.x + 0.72 * bgc.y + 0.04 * bgc.z
+        window?.appearance = NSAppearance(named: bgLum > 0.5 ? .aqua : .darkAqua)
         let newOverride = crtOn ? nil : cfg.plainPalette()
         var changed: Bool
         switch (AnsiColor.plainOverride, newOverride) {
