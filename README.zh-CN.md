@@ -117,7 +117,7 @@
 想核对下载是否完整的话，每个 Release 都附了 SHA-256：
 
 ```bash
-shasum -a 256 YeTerm-1.2.0.zip
+shasum -a 256 YeTerm-1.2.1.zip
 ```
 
 ### 或者自己从源码构建

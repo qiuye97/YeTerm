@@ -115,7 +115,7 @@ Grab the `.zip` from [Releases](https://github.com/qiuye97/YeTerm/releases), unz
 If you want to check the download arrived intact, each release lists a SHA-256:
 
 ```bash
-shasum -a 256 YeTerm-1.2.0.zip
+shasum -a 256 YeTerm-1.2.1.zip
 ```
 
 ### Or build from source

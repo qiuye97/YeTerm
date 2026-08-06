@@ -5,6 +5,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.2.1] — 2026-08-06
+
+### Fixed
+
+- **Characters outside the Basic Multilingual Plane rendered as blank cells** —
+  most visibly the Nerd Fonts v3 Material Design icons (Plane 15, `U+F0001`
+  and up) that powerlevel10k uses, such as the up arrow `󰜷` (U+F0737), and
+  all emoji beyond the BMP. SwiftTerm stores such characters (anything needing
+  two UTF-16 code units) as an index into a side table rather than as a code
+  point; the renderer was decoding cells with the context-free accessor, which
+  can't reach that table and falls back to a space — so the cell kept its
+  width but drew nothing. All cell decoding now goes through the
+  terminal-aware accessor. Old-style BMP icons (Powerline triangles etc.) were
+  never affected. Emoji now draw as white silhouettes (the glyph pipeline is a
+  monochrome mask by design); color emoji is a separate topic.
+
+### Added
+
+- `scripts/dump_icons.py` — prints every official Nerd Fonts glyph range as a
+  ruler-labelled grid, so you can eyeball which icons render and read the code
+  point of any cell straight off the row label and column index.
+
 ## [1.2.0] — 2026-08-03
 
 ### CRT rendering
