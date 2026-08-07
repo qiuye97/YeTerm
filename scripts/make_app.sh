@@ -132,9 +132,12 @@ mkdir -p "$APP/Contents/Resources/zh-Hans.lproj" "$APP/Contents/Resources/zh_CN.
 # TCC 隐私授权不再因重打包漂移反复弹窗;证书不存在(如同事机器)回退 ad-hoc。
 # 【学】ad-hoc(--sign -)= 无身份的"匿名签名",每次打包指纹都变,
 #      macOS 会把新包当陌生程序;固定证书签名 = 每次都是"同一个人"。
-# YETERM_ADHOC=1 强制 ad-hoc(发行包用):自签证书只存在于作者的钥匙串里,
-# 对 Gatekeeper 来说和 ad-hoc 一样都是「没有 Developer ID、没公证」,
-# 但 ad-hoc 能让任何人自己构建都得到同样的产物,不依赖某台机器上的证书。
+# ⚠️ 发行包政策(2026-08-07 用户裁决,同事实测「每个新版都重弹授权」):
+# **release zip 也用 YeTerm Signing 固定证书签**,别再用 ad-hoc ——
+# TCC 认签名身份,ad-hoc 每版一变,下载方的本地网络等授权版版重来;
+# 固定证书对 Gatekeeper 并没有更差(两者同样是「没公证」,首开都要
+# 「仍要打开」一次),但授权从此跨版本保留。
+# YETERM_ADHOC=1 保留作逃生口(无证书环境复现构建用),发行流程不要用。
 if [ "${YETERM_ADHOC:-0}" = "1" ]; then
     echo "==> ad-hoc 签名(发行包模式)"
     codesign --force --sign - "$APP"

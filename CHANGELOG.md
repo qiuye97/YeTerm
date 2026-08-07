@@ -7,6 +7,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [1.3.1] — 2026-08-07
 
+### Changed
+
+- **Release builds are now signed with a fixed certificate** (previously
+  ad-hoc). macOS keys privacy authorizations (local network access etc.) to
+  the signing identity; ad-hoc signatures change every build, so each release
+  looked like a brand-new app and re-prompted everything. With a fixed
+  identity, authorizations persist across updates — one final re-prompt on
+  this version, then never again. Gatekeeper is unchanged (still not
+  notarized): after downloading, run
+  `xattr -dr com.apple.quarantine /Applications/YeTerm.app` or use System
+  Settings → "Open Anyway" once.
+
 ### Fixed
 
 - **Opening a folder from Finder no longer also restores the previous
