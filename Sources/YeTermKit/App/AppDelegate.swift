@@ -28,6 +28,9 @@ import AppKit
 /// `swift run YeTerm` 直接跑;真正的 .app 打包在 M0-S8。
 public enum AppRunner {
     public static func runGUI(options: LaunchOptions) -> Int32 {
+        // v1.5.2 壁纸残值一次性清洗(只在真 GUI 启动;探针/auto-drive 不走这里,
+        // 不会碰用户真实配置目录)
+        SettingsModel.migrateWallpaperOverrides()
         let app = NSApplication.shared
         let delegate = AppDelegate(options: options)
         app.delegate = delegate

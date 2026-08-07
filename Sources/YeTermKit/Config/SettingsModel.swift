@@ -331,6 +331,73 @@ final class SettingsModel: ObservableObject {
         return loadIfExists(profilePath(name))
     }
 
+    // MARK: - 一次性迁移(v1.5.2 壁纸随预设走)
+
+    /// 清洗 overrides 里的壁纸快照残值(2026-08-07 用户实测「从未设置过背景图的
+    /// 预设显示别的预设的壁纸」勘差):v1.5.2 之前 persistProfile 写**全量快照**,
+    /// 编辑过任何参数的预设都拍进了"当时的全局壁纸";壁纸入 override 白名单后,
+    /// 这些历史残值复活成了"该预设的壁纸"—— 正是 v1.2 教训里的「旧快照压制」,
+    /// 这次轮到壁纸字段中招。修法 = 一次性把所有 override 的壁纸字段删掉(它们
+    /// 不代表逐预设意图),唯一例外:config.json 当前生效的「预设+壁纸」组合是
+    /// 用户此刻看到并认可的,写回当前预设的 override 保住(所见即所得)。
+    /// 只在真 GUI 启动路径(runGUI)调用;marker 文件保证只跑一次。
+    /// 用户配置(profiles/)不清洗:旧语义下 profile 的壁纸字段载入即生效,
+    /// 本来就是逐配置的真实意图,无残值问题。
+    /// 【学】用 JSONSerialization 原地删键而不是 decode→encode 走 CRTConfig:
+    /// 后者会把文件"重写成我们认识的字段",删键法对不认识的内容零破坏。
+    static func migrateWallpaperOverrides(
+        baseDir: String = NSHomeDirectory() + "/Library/Application Support/YeTerm") {
+        let fm = FileManager.default
+        let marker = baseDir + "/.wallpaper-per-preset-migrated"
+        guard !fm.fileExists(atPath: marker) else { return }
+        let wallpaperKeys = ["plainBackgroundImage", "plainBackgroundImageMode",
+                             "plainBackgroundBlur", "plainBackgroundPixelPalette",
+                             "plainBackgroundDarken", "plainBackgroundAnimFPS",
+                             "crtBackgroundImageChroma"]
+        // 当前生效组合:这个预设的壁纸要保住
+        var keepFile: String?
+        var keepValues: [String: Any] = [:]
+        if let data = fm.contents(atPath: baseDir + "/config.json"),
+           let cur = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            if let name = cur["name"] as? String {
+                keepFile = name.replacingOccurrences(of: "/", with: "-") + ".json"
+            }
+            for k in wallpaperKeys { keepValues[k] = cur[k] }
+        }
+        let dir = baseDir + "/overrides"
+        var keepFileSeen = false
+        for f in (try? fm.contentsOfDirectory(atPath: dir)) ?? [] where f.hasSuffix(".json") {
+            let path = dir + "/" + f
+            guard let data = fm.contents(atPath: path),
+                  var obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            else { continue }
+            if f == keepFile {
+                keepFileSeen = true
+                for k in wallpaperKeys { obj[k] = keepValues[k] }   // nil 即删键
+            } else {
+                for k in wallpaperKeys { obj.removeValue(forKey: k) }
+            }
+            if let out = try? JSONSerialization.data(withJSONObject: obj,
+                                                     options: [.prettyPrinted, .sortedKeys]) {
+                try? out.write(to: URL(fileURLWithPath: path))
+            }
+        }
+        // 当前是内置预设但还没有 override 文件 → 为它建一个只带壁纸字段的,
+        // 否则切走再切回时当前壁纸会丢(config.json 只代表"当前",不代表"该预设")
+        if let kf = keepFile, !keepFileSeen,
+           Presets.names.contains(String(kf.dropLast(5))),
+           (keepValues["plainBackgroundImage"] as? String)?.isEmpty == false {
+            let minimal = keepValues.compactMapValues { $0 }
+            if !minimal.isEmpty,
+               let out = try? JSONSerialization.data(withJSONObject: minimal,
+                                                     options: [.prettyPrinted, .sortedKeys]) {
+                try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                try? out.write(to: URL(fileURLWithPath: dir + "/" + kf))
+            }
+        }
+        fm.createFile(atPath: marker, contents: Data("v1.5.2\n".utf8))
+    }
+
     /// 主题切换回调(v1.2 #12 换台效果:只有"切主题"触发,拖滑杆调参不触发)
     var onPresetSwitch: (() -> Void)?
 

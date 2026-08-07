@@ -227,6 +227,45 @@ public enum SettingsProbe {
               && PlainBackground.dimMultiplier(1) == 0.0,
               detail: "mid=\(PlainBackground.dimMultiplier(0.5))")
 
+        // 壁纸残值迁移(2026-08-07 串台勘差):临时目录造旧全量快照,断言
+        // ① 非当前预设的壁纸字段被删、其它字段(brightness)原样保留;
+        // ② config.json 当前预设的壁纸写回它的 override(所见即所得);
+        // ③ marker 落盘后再跑一遍 = 纯空转(改动过的文件不被二次覆盖)
+        let migDir = NSTemporaryDirectory() + "yeterm-probe-migrate-\(ProcessInfo.processInfo.processIdentifier)"
+        let fmM = FileManager.default
+        try? fmM.createDirectory(atPath: migDir + "/overrides", withIntermediateDirectories: true)
+        func writeJSON(_ obj: [String: Any], _ path: String) {
+            try? (try? JSONSerialization.data(withJSONObject: obj))?.write(to: URL(fileURLWithPath: path))
+        }
+        func readJSON(_ path: String) -> [String: Any]? {
+            fmM.contents(atPath: path).flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+        }
+        writeJSON(["name": "Dracula", "plainBackgroundImage": "/tmp/keep.png",
+                   "plainBackgroundImageMode": 3], migDir + "/config.json")
+        writeJSON(["brightness": 0.7, "plainBackgroundImage": "/tmp/stale.png",
+                   "plainBackgroundImageMode": 1, "crtBackgroundImageChroma": true],
+                  migDir + "/overrides/Gruvbox.json")
+        writeJSON(["brightness": 0.6, "plainBackgroundImage": "/tmp/old.png"],
+                  migDir + "/overrides/Dracula.json")
+        SettingsModel.migrateWallpaperOverrides(baseDir: migDir)
+        let mGruv = readJSON(migDir + "/overrides/Gruvbox.json")
+        let mDrac = readJSON(migDir + "/overrides/Dracula.json")
+        check("壁纸残值迁移:残值删除+其它字段保留+当前预设壁纸写回",
+              mGruv?["plainBackgroundImage"] == nil
+              && mGruv?["crtBackgroundImageChroma"] == nil
+              && (mGruv?["brightness"] as? Double) == 0.7
+              && (mDrac?["plainBackgroundImage"] as? String) == "/tmp/keep.png"
+              && (mDrac?["plainBackgroundImageMode"] as? Int) == 3
+              && (mDrac?["brightness"] as? Double) == 0.6
+              && fmM.fileExists(atPath: migDir + "/.wallpaper-per-preset-migrated"),
+              detail: "gruv=\(mGruv ?? [:]) drac=\(mDrac ?? [:])")
+        writeJSON(["brightness": 0.5, "plainBackgroundImage": "/tmp/again.png"],
+                  migDir + "/overrides/Gruvbox.json")
+        SettingsModel.migrateWallpaperOverrides(baseDir: migDir)   // marker 在,应空转
+        check("壁纸残值迁移只跑一次(marker 后空转)",
+              (readJSON(migDir + "/overrides/Gruvbox.json")?["plainBackgroundImage"] as? String) == "/tmp/again.png")
+        try? fmM.removeItem(atPath: migDir)
+
         // ---- v1.4 三项新配置(「文字发光」)----
         // ① 二进制合同:CRTUniforms 尾部追加四个 float(emissiveModel/bloomStyle/
         //    overdrive/overdriveKnee)后 size = 232。setFragmentBytes 传的是 .size,
