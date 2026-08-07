@@ -10,6 +10,7 @@
 //   RunLoop.main.run(until:) —— 手动泵事件循环,让 UI 在脚本里"活"起来。
 // ─────────────────────────────────────────────────────────────────────────────
 import AppKit
+import AVFoundation
 import Metal
 import SwiftTerm
 
@@ -1469,8 +1470,82 @@ public enum AutoDrive {
         pump(0.2)
         snap("crt_bg_image")
 
+        // 场景 29(v1.5.2 用户需求「背景支持 GIF 和视频」):动态背景真的在动。
+        // 生成 12 帧色相轮转的测试 GIF / H.264 视频各一,普通模式铺底后每隔
+        // 0.5s 取一次整屏稀疏均值 —— 三次采样至少一对显著不同 = 帧在推进;
+        // 均值显著非黑 = 图真的铺上了。只断言「变化」不赌相位:播放起点与
+        // 挂钟对不齐,断言具体颜色必然抖。
+        var animOK = true
+        step += 1
+        let animGIFPath = NSTemporaryDirectory() + "yeterm_anim_probe.gif"
+        let animMP4Path = NSTemporaryDirectory() + "yeterm_anim_probe.mp4"
+        if !makeAnimGIF(path: animGIFPath, frames: 12, size: 64, delay: 0.08) {
+            print("✗ 动图测试文件生成失败"); animOK = false
+        }
+        if !makeAnimVideo(path: animMP4Path, frames: 12, w: 128, h: 96, fps: 8) {
+            print("✗ 视频测试文件生成失败"); animOK = false
+        }
+        func animMean(_ tag: String) -> (r: Double, g: Double, b: Double)? {
+            let path = "\(outPrefix)_anim_\(tag).png"
+            guard overlay.dumpFrame(to: path), let img = loadPNG(path) else { return nil }
+            var r = 0.0, g = 0.0, b = 0.0, n = 0.0
+            for y in stride(from: 0, to: img.height, by: 7) {
+                for x in stride(from: 0, to: img.width, by: 7) {
+                    guard let p = pixelAt(img, x: x, y: y) else { continue }
+                    r += Double(p.r); g += Double(p.g); b += Double(p.b); n += 1
+                }
+            }
+            guard n > 0 else { return nil }
+            return (r / n, g / n, b / n)
+        }
+        func animDelta(_ a: (r: Double, g: Double, b: Double)?,
+                       _ b2: (r: Double, g: Double, b: Double)?) -> Double {
+            guard let a, let b2 else { return 0 }
+            return abs(a.r - b2.r) + abs(a.g - b2.g) + abs(a.b - b2.b)
+        }
+        func animAssert(kind: String, path: String) -> Bool {
+            var cfg = plainCfg
+            cfg.plainBackgroundImage = path
+            cfg.plainBackgroundImageMode = 0
+            cfg.plainBackgroundAnimFPS = 30
+            wc.applySettings(cfg, fontSize: 14, cursorStyle: 0)
+            pump(0.6)
+            // 手动推帧:auto-drive 的窗口常年被别的窗口遮挡,renderTick 在
+            // occlusion guard 早退,display link 推不了帧 —— 直接踩同一条推进
+            // 代码(真实 GUI 里由 renderTick 每帧调用)。pump 走的是真实挂钟,
+            // GIF 时间轴/视频播放头照常前进
+            overlay.debugTickAnimBG()
+            let s1 = animMean("\(kind)_1")
+            pump(0.5)
+            overlay.debugTickAnimBG()
+            let s2 = animMean("\(kind)_2")
+            pump(0.5)
+            overlay.debugTickAnimBG()
+            let s3 = animMean("\(kind)_3")
+            let bright = [s1, s2, s3].compactMap { $0 }.contains { $0.r + $0.g + $0.b > 90 }
+            let moved = animDelta(s1, s2) > 15 || animDelta(s2, s3) > 15 || animDelta(s1, s3) > 15
+            let f = { (s: (r: Double, g: Double, b: Double)?) -> String in
+                s.map { String(format: "(%.0f,%.0f,%.0f)", $0.r, $0.g, $0.b) } ?? "nil"
+            }
+            print("  [anim \(kind)] s1=\(f(s1)) s2=\(f(s2)) s3=\(f(s3)) bright=\(bright) moved=\(moved)")
+            return bright && moved
+        }
+        let gifMoved = animOK && animAssert(kind: "gif", path: animGIFPath)
+        let vidMoved = animOK && animAssert(kind: "video", path: animMP4Path)
+        if gifMoved && vidMoved {
+            print("✓ 动态背景:GIF 与视频都在动(整屏均值三采样有显著变化)")
+        } else {
+            print("✗ 动态背景异常 gif=\(gifMoved) video=\(vidMoved)")
+            animOK = false
+        }
+        try? FileManager.default.removeItem(atPath: animGIFPath)
+        try? FileManager.default.removeItem(atPath: animMP4Path)
+        wc.applySettings(crtCfg, fontSize: 14, cursorStyle: 0)   // 收尾回基线
+        pump(0.2)
+        snap("anim_bg")
+
         print("AUTO-DRIVE-DONE steps=\(step)")
-        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK && crtBGOK) ? 0 : 1
+        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK && crtBGOK && animOK) ? 0 : 1
     }
 
     // ---- 场景 21 的小工具:纯色 PNG 生成 / PNG 像素直读 ----
@@ -1487,6 +1562,77 @@ public enum AutoDrive {
         ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
         guard let img = ctx.makeImage() else { return false }
         return (try? PNGWriter.write(img, to: path)) != nil
+    }
+
+    /// 色相轮转动图(场景 29:每帧一个纯色,i/frames 转一圈色环)
+    private static func makeAnimGIF(path: String, frames: Int, size: Int, delay: Double) -> Bool {
+        guard let dest = CGImageDestinationCreateWithURL(
+            URL(fileURLWithPath: path) as CFURL, "com.compuserve.gif" as CFString, frames, nil)
+        else { return false }
+        CGImageDestinationSetProperties(dest,
+            [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+        let info = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+        for i in 0..<frames {
+            guard let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8,
+                                      bytesPerRow: size * 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: info),
+                  let c = NSColor(hue: CGFloat(i) / CGFloat(frames), saturation: 1,
+                                  brightness: 1, alpha: 1).usingColorSpace(.sRGB)
+            else { return false }
+            ctx.setFillColor(CGColor(srgbRed: c.redComponent, green: c.greenComponent,
+                                     blue: c.blueComponent, alpha: 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+            guard let img = ctx.makeImage() else { return false }
+            CGImageDestinationAddImage(dest, img,
+                [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: delay]] as CFDictionary)
+        }
+        return CGImageDestinationFinalize(dest)
+    }
+
+    /// 色相轮转 H.264 小视频(场景 29;AVAssetWriter 逐帧喂 BGRA)
+    private static func makeAnimVideo(path: String, frames: Int, w: Int, h: Int, fps: Int) -> Bool {
+        try? FileManager.default.removeItem(atPath: path)
+        guard let writer = try? AVAssetWriter(outputURL: URL(fileURLWithPath: path), fileType: .mp4)
+        else { return false }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: w, AVVideoHeightKey: h,
+        ])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
+                                                           sourcePixelBufferAttributes: nil)
+        writer.add(input)
+        guard writer.startWriting() else { return false }
+        writer.startSession(atSourceTime: .zero)
+        for i in 0..<frames {
+            while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.01) }
+            var pbOpt: CVPixelBuffer?
+            CVPixelBufferCreate(kCFAllocatorDefault, w, h, kCVPixelFormatType_32BGRA,
+                                [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &pbOpt)
+            guard let pb = pbOpt,
+                  let c = NSColor(hue: CGFloat(i) / CGFloat(frames), saturation: 1,
+                                  brightness: 1, alpha: 1).usingColorSpace(.sRGB)
+            else { return false }
+            CVPixelBufferLockBaseAddress(pb, [])
+            let base = CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self)
+            let rowBytes = CVPixelBufferGetBytesPerRow(pb)
+            let (rr, gg, bb) = (UInt8(c.redComponent * 255), UInt8(c.greenComponent * 255),
+                                UInt8(c.blueComponent * 255))
+            for y in 0..<h {
+                let row = base + y * rowBytes
+                for x in 0..<w {
+                    row[x * 4] = bb; row[x * 4 + 1] = gg; row[x * 4 + 2] = rr; row[x * 4 + 3] = 255
+                }
+            }
+            CVPixelBufferUnlockBaseAddress(pb, [])
+            adaptor.append(pb, withPresentationTime: CMTime(value: CMTimeValue(i),
+                                                            timescale: CMTimeScale(fps)))
+        }
+        input.markAsFinished()
+        let sem = DispatchSemaphore(value: 0)
+        writer.finishWriting { sem.signal() }
+        sem.wait()   // harness 阻塞几百毫秒可接受(finishWriting 回调在后台队列,不依赖主线程)
+        return writer.status == .completed
     }
 
     private static func loadPNG(_ path: String) -> CGImage? {

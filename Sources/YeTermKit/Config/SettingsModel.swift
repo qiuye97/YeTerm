@@ -95,6 +95,7 @@ final class SettingsModel: ObservableObject {
     @Published var plainBackgroundBlur: Double = 0.5   // 毛玻璃模糊强度(仅 mode=1)
     @Published var plainBackgroundPixelPalette: Int = 0   // 像素风调色板(仅 mode=2)
     @Published var plainBackgroundDarken: Double = 0.5    // 暗化程度(仅 mode=3;0.5=旧固定观感)
+    @Published var plainBackgroundAnimFPS: Int = 30       // 动图/视频取帧上限挡位(15/30/60)
     @Published var crtBackgroundImageChroma: Bool = false   // 背景图荧光染色(仅 CRT 模式)
     // 小件三连(v1.2 #8)
     @Published var inheritCwd: Bool = true
@@ -202,6 +203,7 @@ final class SettingsModel: ObservableObject {
         plainBackgroundBlur = c.plainBackgroundBlur ?? 0.5
         plainBackgroundPixelPalette = c.plainBackgroundPixelPalette ?? 0
         plainBackgroundDarken = c.plainBackgroundDarken ?? 0.5
+        plainBackgroundAnimFPS = c.plainBackgroundAnimFPS ?? 30
         crtBackgroundImageChroma = c.crtBackgroundImageChroma ?? false
         inheritCwd = c.inheritCwd ?? inheritCwd
         scrollbackLines = c.scrollbackLines ?? scrollbackLines
@@ -315,6 +317,7 @@ final class SettingsModel: ObservableObject {
                 c.plainBackgroundBlur = o.plainBackgroundBlur ?? c.plainBackgroundBlur
                 c.plainBackgroundPixelPalette = o.plainBackgroundPixelPalette ?? c.plainBackgroundPixelPalette
                 c.plainBackgroundDarken = o.plainBackgroundDarken ?? c.plainBackgroundDarken
+                c.plainBackgroundAnimFPS = o.plainBackgroundAnimFPS ?? c.plainBackgroundAnimFPS
                 c.crtBackgroundImageChroma = o.crtBackgroundImageChroma ?? c.crtBackgroundImageChroma
             }
             // 经典 CRT 锁定兜底(旧档可能存过"关"):设备还原主题恒为 CRT 开;
@@ -446,6 +449,7 @@ final class SettingsModel: ObservableObject {
         c.plainBackgroundBlur = plainBackgroundBlur
         c.plainBackgroundPixelPalette = plainBackgroundPixelPalette
         c.plainBackgroundDarken = plainBackgroundDarken
+        c.plainBackgroundAnimFPS = plainBackgroundAnimFPS
         c.crtBackgroundImageChroma = crtBackgroundImageChroma
         c.inheritCwd = inheritCwd
         c.scrollbackLines = scrollbackLines

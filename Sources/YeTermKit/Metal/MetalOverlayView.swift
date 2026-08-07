@@ -83,6 +83,7 @@ final class MetalOverlayView: MTKView {
     // 500ms 兜底重绘不停刷新它 → 「活动后 1s 常亮」永远成立 → 光标永不闪
     private var lastActivityTime: CFTimeInterval = 0
     private var contentDirty = true
+    private var dbgAnimLog: CFTimeInterval = 0   // 动态背景取证口节流
     private weak var caretMirror: NSView?           // SwiftTerm 的 caretView(镜像其显隐)
 
     // 静态跳帧:无动画特效且内容/光标未变时不取 drawable(省 GPU/功耗)
@@ -483,6 +484,7 @@ final class MetalOverlayView: MTKView {
     func start() {
         stop()
         isPaused = false
+        plainBG?.setPaused(false)   // 与 stop() 的暂停配对(恢复/回前台续播背景视频)
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] ev in
             self?.lastInputTime = CACurrentMediaTime()
             return ev
@@ -514,6 +516,7 @@ final class MetalOverlayView: MTKView {
 
     func stop() {
         isPaused = true
+        plainBG?.setPaused(true)   // 渲染循环停摆 → 背景视频/动图一起停(恢复由 renderTick 续播)
         if let m = keyMonitor {
             NSEvent.removeMonitor(m)
             keyMonitor = nil
@@ -668,10 +671,11 @@ final class MetalOverlayView: MTKView {
     /// 设置接线(applyCRTMode 每次广播都会调;路径/模式/强度没变=纯空转)。
     /// path=nil 即清除(成品纹理顺手释放)
     func setPlainBackground(path: String?, mode: Int, blur: Double, palette: Int,
-                            darken: Double = 0.5) {
+                            darken: Double = 0.5, animFPS: Int = 30) {
         if path != nil && plainBG == nil { plainBG = PlainBackground(ctx: mtl) }
         guard let pb = plainBG else { return }
-        if pb.update(path: path, mode: mode, blur: blur, palette: palette, darken: darken) {
+        if pb.update(path: path, mode: mode, blur: blur, palette: palette, darken: darken,
+                     animFPS: animFPS) {
             invalidateContentCache()   // 内容纹理清屏透明与否随背景图切换,立即重建
         }
     }
@@ -1240,6 +1244,15 @@ final class MetalOverlayView: MTKView {
         return u
     }
 
+    /// 自测钩子(auto-drive 场景 29):被遮挡的窗口里 renderTick 在 occlusion
+    /// guard 早退,动态背景永远推不了帧 —— 场景直接踩这一步(与 renderTick
+    /// 同一条推进代码,真实 GUI 里由 renderTick 每帧干同一件事)
+    @discardableResult
+    func debugTickAnimBG(now: CFTimeInterval = CACurrentMediaTime()) -> Bool {
+        plainBG?.setPaused(false)
+        return plainBG?.tick(now: now) ?? false
+    }
+
     /// 自测:把「与屏幕同源」的一帧渲染导出 PNG(--auto-drive 用)
     /// 与屏幕同源渲染一帧(v1.2 #7 拆出通用取帧口)。
     /// `live=false`:探针/截图用,强制稳态+光标恒亮(确定性);
@@ -1316,6 +1329,17 @@ final class MetalOverlayView: MTKView {
         // **必须在所有 guard 之前** —— 被遮挡/隐藏而早退也算"回调还活着",
         // 只有 display link 本身死了才该触发恢复。
         lastTickTime = CACurrentMediaTime()
+        // 取证口(2026-08-07 动态背景排查):renderTick 是否活着 + 各 guard 状态
+        if ProcessInfo.processInfo.environment["YETERM_DEBUG_ANIMBG"] != nil,
+           lastTickTime - dbgAnimLog > 1 {
+            dbgAnimLog = lastTickTime
+            FileHandle.standardError.write(Data(
+                "[animbg-rt] hidden=\(isHidden) occl=\(window?.occlusionState.contains(.visible) ?? true) mini=\(window?.isMiniaturized ?? false) plainBG=\(plainBG != nil) paused=\(isPaused)\n".utf8))
+        }
+        // 遮挡/最小化早退(v1.0 既有)。⚠️ 这里**不要**顺手 setPaused 背景视频
+        // (2026-08-07 教训):auto-drive 的窗口常年被挡,一暂停就跟场景 29 的
+        // 手动推帧钩子打架;遮挡时 tick 不被调用,GIF 零成本、视频只剩硬解在转
+        // (专用芯片,量级可忽略),真正的暂停留给 stop()/start()(app 停摆/关窗)
         guard let tv = focusedViewProvider?() ?? sources.first?.view,
               tv.window != nil,
               window?.isMiniaturized != true,
@@ -1330,6 +1354,11 @@ final class MetalOverlayView: MTKView {
         guard !isHidden else { return }
 
         let now = CACurrentMediaTime()
+
+        // 背景动画(GIF/视频,v1.5.2):按帧率挡位推进,推进了必须出帧。
+        // 普通模式的图走合成层铺底 → 置脏重合成;CRT 模式走 texture(4),绑定即新帧
+        let bgAdvanced = plainBG?.tick(now: now) ?? false
+        if bgAdvanced, uniforms.colorPassthrough > 0.5 { contentDirty = true }
 
         let didCapture = contentDirty || sourceTexture == nil || (now - lastCaptureTime) > 0.5
         if didCapture {
@@ -1375,7 +1404,7 @@ final class MetalOverlayView: MTKView {
         let animated = powerAnimStart >= 0 || uniforms.staticNoise > 0 || uniforms.flickering > 0
             || uniforms.glowingLine > 0 || burnDecaying
             || uniforms.jitter > 0 || uniforms.horizontalSyncStrength > 0
-        if !didCapture,
+        if !didCapture, !bgAdvanced,
            u.cursorRectUV == lastPresentedCursor, u.cursorOn == lastPresentedCursorOn {
             if !animated { return }
             if powerAnimStart < 0, now - lastAnimFrameTime < animFrameInterval { return }

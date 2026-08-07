@@ -487,6 +487,12 @@ private struct BackgroundImageCard: View {
         crtMode && Presets.isClassicCRT(model.presetName)
     }
 
+    /// 当前选的是动图/视频(v1.5.2):按扩展名判定,与 PlainBackground.SourceKind 同一套
+    private var isAnimatedSource: Bool {
+        let ext = (model.plainBackgroundImagePath as NSString).pathExtension.lowercased()
+        return ["gif", "mp4", "mov", "m4v"].contains(ext)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -497,13 +503,14 @@ private struct BackgroundImageCard: View {
                         .glassButton()
                         .controlSize(.small)
                 }
-                Button(L("选择图片…")) {
+                Button(L("选择图片/视频…")) {
                     // 【学】NSOpenPanel = macOS 系统文件选择对话框(类比 <input type=file>);
-                    //      runModal() 同步弹窗等用户选完,.OK 表示点了"打开"
+                    //      runModal() 同步弹窗等用户选完,.OK 表示点了"打开"。
+                    //      .image 已含 GIF;.movie 放行 mp4/mov/m4v(v1.5.2 动态背景)
                     let panel = NSOpenPanel()
-                    panel.allowedContentTypes = [.image]
+                    panel.allowedContentTypes = [.image, .movie]
                     panel.allowsMultipleSelection = false
-                    panel.message = L("选择终端背景图片")
+                    panel.message = L("选择终端背景图片或视频")
                     if panel.runModal() == .OK, let url = panel.url {
                         model.plainBackgroundImagePath = url.path
                     }
@@ -525,6 +532,19 @@ private struct BackgroundImageCard: View {
                 Text((model.plainBackgroundImagePath as NSString).lastPathComponent)
                     .font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle)
+                if isAnimatedSource {
+                    // 动图/视频专属(v1.5.2):取帧上限挡位 —— 限的是上屏节奏,
+                    // 越低越省电;视频恒静音,窗口被遮挡/最小化自动暂停
+                    Picker(L("动画帧率"), selection: $model.plainBackgroundAnimFPS) {
+                        Text("15 fps").tag(15)
+                        Text("30 fps").tag(30)
+                        Text("60 fps").tag(60)
+                    }
+                    .pickerStyle(.segmented)
+                    Text(L("背景动画的帧率上限,越低越省电;视频恒静音播放。"))
+                        .font(.caption).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Picker("", selection: $model.plainBackgroundImageMode) {
                     Text(L("无变化")).tag(0)
                     Text(L("毛玻璃")).tag(1)

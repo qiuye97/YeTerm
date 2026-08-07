@@ -165,8 +165,10 @@
 
 // ── Settings: background image (both plain and CRT mode since v1.5.1) ───────
 "背景图片" = "Background Image";
-"选择图片…" = "Choose Image…";
-"选择终端背景图片" = "Choose a background image for the terminal";
+"选择图片/视频…" = "Choose Image/Video…";
+"选择终端背景图片或视频" = "Choose a background image or video for the terminal";
+"动画帧率" = "Animation FPS";
+"背景动画的帧率上限,越低越省电;视频恒静音播放。" = "Frame-rate cap for the animated background — lower saves power. Video always plays muted.";
 "未设置 —— 背景为上方的纯背景色。壁纸跟着预设走,每个预设可各配一张。" = "Not set — the background is the solid color above. Wallpaper is per-preset: each preset keeps its own.";
 "无变化" = "As-is";
 "毛玻璃" = "Frosted glass";

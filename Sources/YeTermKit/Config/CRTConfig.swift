@@ -137,6 +137,7 @@ public struct CRTConfig: Codable {
     public var plainBackgroundBlur: Double?       // 毛玻璃模糊强度 0~1(缺省 0.5,仅 mode=1 用)
     public var plainBackgroundPixelPalette: Int?  // 像素风调色板:0 PICO-8/1 DB16/2 GameBoy/3 原色(仅 mode=2 用)
     public var plainBackgroundDarken: Double?     // 暗化程度 0~1(缺省 0.5 = 旧固定观感 ×0.35,仅 mode=3 用)
+    public var plainBackgroundAnimFPS: Int?       // 动图/视频背景取帧上限 15/30/60(缺省 30;静图不读)
     /// 背景图的荧光染色(v1.5.1,**仅 CRT 模式读**):nil/false = 保留图片原色,图当
     /// 屏幕底图、磷光文字发光浮在上面(缺省);true = 整张图染成磷光单色 + 吃扫描线,
     /// 像真 CRT 正在显示这张图。普通模式的背景图走合成层,不受此项影响。

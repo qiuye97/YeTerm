@@ -203,17 +203,20 @@ public enum SettingsProbe {
         wpCfg.plainBackgroundImage = "/tmp/probe-壁纸.png"
         wpCfg.plainBackgroundImageMode = 3
         wpCfg.plainBackgroundDarken = 0.9
+        wpCfg.plainBackgroundAnimFPS = 60
         wpCfg.crtBackgroundImageChroma = true
         let wpModel = SettingsModel(from: wpCfg)
         wpModel.persistenceEnabled = false
         let wpLoaded = wpModel.plainBackgroundImagePath == "/tmp/probe-壁纸.png"
             && wpModel.plainBackgroundImageMode == 3 && wpModel.crtBackgroundImageChroma
             && wpModel.plainBackgroundDarken == 0.9
+            && wpModel.plainBackgroundAnimFPS == 60
         wpModel.load(config: Presets.byName("Default Amber")!)
         check("壁纸跟预设走:载入无壁纸预设即清空(不残留上一套)",
               wpLoaded && wpModel.plainBackgroundImagePath.isEmpty
               && wpModel.plainBackgroundImageMode == 0
               && wpModel.plainBackgroundDarken == 0.5
+              && wpModel.plainBackgroundAnimFPS == 30
               && !wpModel.crtBackgroundImageChroma,
               detail: "loaded=\(wpLoaded) path=\(wpModel.plainBackgroundImagePath) mode=\(wpModel.plainBackgroundImageMode)")
         // 暗化乘数定标:0.5 档必须精确 = 0.35(v1.2 固定观感;auto-drive 有

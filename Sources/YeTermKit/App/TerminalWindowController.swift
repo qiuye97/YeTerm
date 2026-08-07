@@ -1287,7 +1287,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                               mode: cfg.plainBackgroundImageMode ?? 0,
                               blur: cfg.plainBackgroundBlur ?? 0.5,
                               palette: cfg.plainBackgroundPixelPalette ?? 0,
-                              darken: cfg.plainBackgroundDarken ?? 0.5)
+                              darken: cfg.plainBackgroundDarken ?? 0.5,
+                              animFPS: cfg.plainBackgroundAnimFPS ?? 30)
     }
 
     /// 显示 → 开关 CRT 特效(⌘E):翻的是**配置项**(持久;AppDelegate 转进来)
