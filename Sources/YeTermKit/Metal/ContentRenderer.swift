@@ -90,6 +90,35 @@ final class ContentRenderer {
         self.queue = ctx.queue
     }
 
+    /// 显存账本条目(VRAMProbe 诊断用,只读;不参与渲染)。
+    /// 图集是**每个 ContentRenderer 各自一份**(每 pane / 标签栏 / OSD 各一个),
+    /// 这条账正是为了把那份重复摊到明面上。
+    var probeTextures: [(String, MTLTexture?)] {
+        var out: [(String, MTLTexture?)] = [("pane.内容纹理", contentTexture),
+                                            ("pane.字形图集", atlas?.texture)]
+        if let e = imageTextureCache.objectEnumerator() {
+            for obj in e {
+                if let t = obj as? MTLTexture { out.append(("pane.终端图片", t)) }
+            }
+        }
+        return out
+    }
+
+    /// 实例缓冲池(三缓冲轮转)占的显存
+    var probeBufferBytes: Int {
+        bufferRings.flatMap { $0 }.compactMap { $0?.allocatedSize }.reduce(0, +)
+    }
+
+    /// 图集使用率 + 这个 renderer 用的字体(诊断:多 pane 同字体 = 图集可共享)
+    var probeAtlasUsage: String? {
+        guard let a = atlas else { return nil }
+        let u = a.probeUsage
+        let pct = Double(u.usedRows) / Double(u.capacityRows) * 100
+        return String(format: "%@ %.0fpt: %d 字形/用掉 %d 行像素(共 %d, %.0f%%), cell=%dx%d",
+                      atlasFontName, atlasFontSize, u.glyphs, u.usedRows, u.capacityRows,
+                      pct, cellPx.w, cellPx.h)
+    }
+
     /// IME 预编辑(拼音):画进特效层,替代 M0 的「掀开」权宜
     struct Preedit {
         let text: String
@@ -212,9 +241,29 @@ final class ContentRenderer {
                 rowCaches[row].valid = false
             }
         }
-        for row in 0..<rows where !rowCaches[row].valid {
-            rowCaches[row] = buildRow(row: row, terminal: terminal, atlas: atlas,
-                                      cols: cols, cw: cw, chh: chh, selection: selection)
+        // 行构建(图集扩容护栏,2026-08-07):buildRow 里首次遇到的字形会栅格化,
+        // 可能把图集撑到扩容 —— 而 uv 是按图集边长**归一化**的,一扩容,**本帧
+        // 已建好的那些行**存的 uv 就全指错了(前半屏字形错位/空白一帧)。
+        // 故:建完一轮比对 generation,变了就把本帧成果整体作废重来。
+        // 至多重来一次 —— 第二轮所有字形都已在图集里,不会再触发扩容。
+        var atlasGen = atlas.generation
+        for _ in 0..<2 {
+            // 预热 IME 预编辑字形:拼音覆盖层是在行拼接**之后**才取 uv 的,若让它
+            // 在那时才首次栅格化并撑到扩容,已拼好的整屏 uv 会被带歪。提前到这里
+            // 触发,扩容就落在下面的 generation 检查点之内。
+            if let p = preedit {
+                for ch in p.text {
+                    _ = atlas.slot(text: String(ch), wide: Self.isWideChar(ch),
+                                   bold: false, italic: false)
+                }
+            }
+            for row in 0..<rows where !rowCaches[row].valid {
+                rowCaches[row] = buildRow(row: row, terminal: terminal, atlas: atlas,
+                                          cols: cols, cw: cw, chh: chh, selection: selection)
+            }
+            if atlas.generation == atlasGen { break }
+            atlasGen = atlas.generation
+            for i in rowCaches.indices { rowCaches[i].valid = false }
         }
 
         // 扁平拼接(纯数组拷贝,无解码/查表)

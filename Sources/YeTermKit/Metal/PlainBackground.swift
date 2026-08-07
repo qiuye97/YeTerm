@@ -100,6 +100,19 @@ final class PlainBackground {
     /// 是否动画源(renderTick 据此决定要不要每帧来问)
     var isAnimated: Bool { player != nil || gifFrames.count > 1 }
 
+    /// 显存账本条目(VRAMProbe 诊断用,只读;不参与渲染)。
+    /// GIF 的 `gifFrames` 是 CPU 侧字节不在此列 —— 单独报个尺寸提示。
+    var probeTextures: [(String, MTLTexture?)] {
+        var out: [(String, MTLTexture?)] = [("plainBG.成品", texture)]
+        for t in gifUpload { out.append(("plainBG.gif上传", t)) }
+        if let cv = cvHold, let t = CVMetalTextureGetTexture(cv) { out.append(("plainBG.视频帧", t)) }
+        if let cv = cvHoldPrev, let t = CVMetalTextureGetTexture(cv) { out.append(("plainBG.视频帧", t)) }
+        return out
+    }
+
+    /// GIF 预解码占的 **CPU** 内存(帧字节;显存账本的补充说明)
+    var probeGIFBytes: Int { gifFrames.reduce(0) { $0 + $1.count } }
+
     // 与 Bloom.metal / EffectChain 的同名 struct 逐字节一致(模糊 pass 复用)
     private struct BlurUniforms {
         var direction: SIMD2<Float>

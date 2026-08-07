@@ -43,7 +43,9 @@ final class GlyphAtlas {
         let variant: UInt8       // bit0 bold, bit1 italic
     }
 
-    let texture: MTLTexture
+    /// 图集纹理。**按需增长**(2026-08-07 内存优化)故为 var:扩容时整张换新,
+    /// 旧纹理随 ARC 释放(在途命令缓冲会自动保活到用完,不会被抽走)。
+    private(set) var texture: MTLTexture
     private let device: MTLDevice
     private let cellPx: (w: Int, h: Int)
     private let fonts: [CTFont]              // [normal, bold, italic, boldItalic]
@@ -52,23 +54,58 @@ final class GlyphAtlas {
     private let capHeightPx: CGFloat         // 大写字高(图标尺寸/对齐的锚)
     private var cache: [Key: Slot] = [:]
 
-    private let atlasSize = 2048
+    /// 图集边长上限(2048² ×4B = 16MB —— v1.0~v1.5.2 的**固定**尺寸,现在是天花板)
+    static let maxAtlasSize = 2048
+
+    /// 当前图集边长(起始按字体 cell 推算,装满翻倍,封顶 maxAtlasSize)。
+    /// 起因(2026-08-07 内存勘查):写死 2048 时实测使用率 **2%**
+    /// (27 个字形 / 用掉 46 行像素,cell=22×46),16MB 里 15.7MB 是空的;
+    /// 且**每个 ContentRenderer 各持一份**(每 pane + 标签栏 + OSD + 粘贴框 + 服务器选单)。
+    private(set) var atlasSize: Int
+    /// 扩容代数:每扩容一次 +1。uv 是按 atlasSize **归一化**的,扩容后全部旧 uv
+    /// 失效 —— ContentRenderer 靠比对这个计数器决定要不要作废行缓存重建。
+    private(set) var generation: UInt32 = 0
+
     private var cursorX = 0
     private var cursorY = 0
+    /// 迁移期护栏:grow() 内部重新栅格化旧字形时不得再触发 grow(新图集是旧的
+    /// 4 倍面积,旧内容必然装得下;这个标志只防御意料外的递归)
+    private var isGrowing = false
 
     // 栅格化画布(窄/宽两种,复用)
     private var ctxNarrow: CGContext?
     private var ctxWide: CGContext?
 
+    /// 起始边长:够装下「ASCII 全套 × 4 个字体变体」再留点余量即可,按 cell 尺寸
+    /// 从 512 起逐级翻倍试。这样小字号只花 1MB、常规字号 4MB,大字号才退回 16MB ——
+    /// 而不是一律先要 16MB。装满了照样能长(grow),所以这里估小了也只是多迁移一次。
+    static func initialSize(cellPx: (w: Int, h: Int)) -> Int {
+        let want = 95 * 4 + 40          // 可见 ASCII × 4 变体 + 余量
+        var size = 512
+        while size < maxAtlasSize {
+            let cols = size / max(cellPx.w, 1), rows = size / max(cellPx.h, 1)
+            if cols * rows >= want { break }
+            size *= 2
+        }
+        return min(size, maxAtlasSize)
+    }
+
+    /// 建一张图集纹理(扩容时复用同一条描述,保证格式与 usage 逐字段一致)
+    private static func makeAtlasTexture(device: MTLDevice, size: Int) -> MTLTexture? {
+        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm,
+                                                            width: size, height: size,
+                                                            mipmapped: false)
+        desc.usage = [.shaderRead]
+        return device.makeTexture(descriptor: desc)
+    }
+
     init?(device: MTLDevice, font: NSFont, cellPx: (w: Int, h: Int), scale: CGFloat) {
         self.device = device
         self.cellPx = cellPx
 
-        let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm,
-                                                            width: atlasSize, height: atlasSize,
-                                                            mipmapped: false)
-        desc.usage = [.shaderRead]
-        guard let tex = device.makeTexture(descriptor: desc) else { return nil }
+        let size = Self.initialSize(cellPx: cellPx)
+        guard let tex = Self.makeAtlasTexture(device: device, size: size) else { return nil }
+        atlasSize = size
         texture = tex
 
         // 字体按像素栅格化:字号 × scale;矩阵(fontWidth 横向缩放)随字体携带,
@@ -106,6 +143,12 @@ final class GlyphAtlas {
         let hLogical = ceil(CTFontGetAscent(ct) + CTFontGetDescent(ct) + CTFontGetLeading(ct))
         return (max(Int(round(advance.width * scale)), 2),
                 max(Int(round(hLogical * scale)), 2))
+    }
+
+    /// 图集使用率(VRAMProbe 诊断用,只读):已缓存字形数 / 已用到的行高 / 容量估算。
+    /// 行式装箱是「从上往下逐行铺」,所以 cursorY+行高 就是真正用掉的高度。
+    var probeUsage: (glyphs: Int, usedRows: Int, capacityRows: Int) {
+        (cache.count, min(cursorY + cellPx.h, atlasSize), atlasSize)
     }
 
     func slot(text: String, wide: Bool, bold: Bool, italic: Bool) -> Slot? {
@@ -169,11 +212,22 @@ final class GlyphAtlas {
             cursorY += h
         }
         if cursorY + h > atlasSize {
-            // 图集满:清空重来(极端场景;M1b 再做 LRU)
-            FileHandle.standardError.write(Data("GlyphAtlas 已满,清空重建\n".utf8))
-            cache.removeAll()
-            cursorX = 0
-            cursorY = 0
+            // 满了:先试**扩容**(翻倍 + 把已有字形迁到新图集),扩不动才清空重来。
+            // 比 v1.5.2 前"一满就全清"更稳 —— 全清会让已在屏字形当帧集体失踪、
+            // 随后逐个重栅格化(卡顿 + 闪烁);扩容则内容连续,只是 uv 整体换算。
+            if !isGrowing, grow() {
+                if cursorX + w > atlasSize {      // 新图集里重新装箱
+                    cursorX = 0
+                    cursorY += h
+                }
+            }
+            if cursorY + h > atlasSize {
+                // 已到 2048² 上限(或扩容失败):维持 v1.0 起的原行为
+                FileHandle.standardError.write(Data("GlyphAtlas 已满,清空重建\n".utf8))
+                cache.removeAll()
+                cursorX = 0
+                cursorY = 0
+            }
         }
 
         guard let ctx = context(wide: wide) else { return nil }
@@ -289,6 +343,40 @@ final class GlyphAtlas {
                                       Float(h) / Float(atlasSize)))
         cursorX += w
         return s
+    }
+
+    /// 扩容一级(边长翻倍,封顶 maxAtlasSize),并把已缓存字形**全部迁到新图集**。
+    /// 迁移方式是照原样重新栅格化(而不是 GPU 拷贝):字形绘制是确定性的,重画
+    /// 得到逐比特相同的位图,还省掉一次 blit 编码;代价是几百次 CoreText 绘制,
+    /// 只在扩容那一刻付一次。
+    ///
+    /// 返回 false = 已到上限,调用方走"清空重来"的老路。
+    /// ⚠️ 迁移期间 `isGrowing` 置位,rasterize 不得再触发 grow(防递归)。
+    private func grow() -> Bool {
+        guard atlasSize < Self.maxAtlasSize else { return false }
+        let newSize = min(atlasSize * 2, Self.maxAtlasSize)
+        guard let newTex = Self.makeAtlasTexture(device: device, size: newSize) else { return false }
+
+        let old = cache
+        texture = newTex          // 旧纹理在此失去最后一个强引用 → ARC 回收
+        atlasSize = newSize
+        generation &+= 1          // uv 全体作废的信号(ContentRenderer 据此重建行缓存)
+        cache.removeAll()
+        cursorX = 0
+        cursorY = 0
+
+        isGrowing = true
+        defer { isGrowing = false }
+        for key in old.keys {
+            if let s = rasterize(text: key.text, wide: key.wide, variant: key.variant) {
+                cache[key] = s
+            }
+        }
+        if ProcessInfo.processInfo.environment["YETERM_DEBUG_GLYPH"] != nil {
+            FileHandle.standardError.write(Data(
+                "[glyph] 图集扩容 \(atlasSize / 2)² → \(atlasSize)²(迁移 \(old.count) 个字形, gen=\(generation))\n".utf8))
+        }
+        return true
     }
 
     /// 私有使用区 = 图标字体的地盘(powerline E0B0–E0BF 已由 BoxDrawing 程序化,不到这里)

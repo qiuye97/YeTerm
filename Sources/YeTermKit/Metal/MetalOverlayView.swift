@@ -431,7 +431,25 @@ final class MetalOverlayView: MTKView {
         return Float(t)
     }
 
-    var uniforms = CRTUniforms()
+    var uniforms = CRTUniforms() {
+        didSet { releaseUnusedEffectTextures() }
+    }
+
+    /// 特效参数变化后回收用不着的派生纹理(2026-08-07 内存优化)。
+    /// 判据直接照抄下面 `updateDerived` 里"要不要算"的那两个条件 —— 两处必须
+    /// 同源,否则会出现"刚释放又重建"的抖动。关 CRT 总开关时 CRTConfig 会把
+    /// bloomAmount/burnIn/frameOn 一并归零(见 CRTConfig.apply 尾部),故这里
+    /// 一次性全收;单独把辉光滑到 0 也照样回收。
+    private func releaseUnusedEffectTextures() {
+        guard let fx = effects else { return }
+        let bloomUsed = uniforms.bloomAmount > 0
+            || (uniforms.frameOn > 0.5 && uniforms.frameShininess > 0)
+        if !bloomUsed {
+            bloomTexture = nil        // 先断自己这个强引用,否则整条链放不掉
+            fx.releaseBloom()
+        }
+        if uniforms.burnIn <= 0 { fx.resetBurnIn() }
+    }
 
     /// 工厂:Metal 不可用返回 nil(init() 与 NSView 非 failable 签名冲突,不能直接 override)
     static func make() -> MetalOverlayView? {
@@ -450,6 +468,28 @@ final class MetalOverlayView: MTKView {
         colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         layer?.isOpaque = true
         framebufferOnly = true
+        // drawable 张数 3 → 2(2026-08-07 内存优化):CAMetalLayer 缺省三缓冲,
+        // 每张 = 窗口物理像素 ×4B —— 5K 全屏(5120×2880)时**每张 57MB**,三张
+        // 就是 171MB,是整个进程内存的头号大户(实测 572MB 里占 30%)。
+        // 双缓冲够用的根据:本视图是 display-link 驱动的**固定节拍**渲染,
+        // 每帧的 GPU 活儿是几趟全屏 pass,远没到"CPU 要跑在 GPU 前面两帧"的
+        // 地步;三缓冲的收益只在 CPU 编码时间逼近一个刷新周期时才体现。
+        // **代价**:若某帧 GPU 超时,nextDrawable 会阻塞等一张回收,表现为掉一帧
+        // 而非撕裂。
+        //
+        // ⚠️ **帧率尚未实测**(2026-08-07 留档):验证需要测试窗口真正上屏
+        // (display link 只在 app 拿到前台焦点后才 start,窗口被遮挡则 renderTick
+        // 早退),而当时机器正被用户使用,测试实例始终抢不到焦点 —— 没测成就
+        // **不写"已实测"**。像素侧是安全的:drawable 只决定"画到哪张纸上",
+        // 内容一字不变(10 组逐像素对拍 maxDiff=0 已覆盖)。
+        // 复测办法:`YETERM_DEBUG_FPS=1 YeTerm`,窗口露出来放着,看 [fps] 行的
+        // p99/最差是否贴住刷新周期(120Hz → 8.3ms)。若发现不跟手,设
+        // `YETERM_DRAWABLES=3` 即刻回到旧行为,无需改代码。
+        // YETERM_DRAWABLES 可覆盖(2 或 3),专为"减张数会不会掉帧"的同口径对拍 ——
+        // 一个二进制跑两种配置,比拿两个版本比更干净。日常无需设置。
+        let wantDrawables = ProcessInfo.processInfo.environment["YETERM_DRAWABLES"]
+            .flatMap { Int($0) } ?? 2
+        (layer as? CAMetalLayer)?.maximumDrawableCount = max(2, min(3, wantDrawables))
         isPaused = true                            // start() 时开跑(display link 驱动)
         enableSetNeedsDisplay = false
         delegate = self
@@ -1244,6 +1284,63 @@ final class MetalOverlayView: MTKView {
         return u
     }
 
+    /// 显存账本:把这个窗口管线里能点到名的纹理逐项摊开(诊断专用,只读)。
+    /// 点不到名的部分(drawable、标签栏/OSD 自带的图集、驱动内部缓冲)由
+    /// VRAMProbe 用 `device.currentAllocatedSize` 对账后报成"差额"。
+    /// 帧率哨兵开关(与 VRAMProbe 同一套路:缺省 false,判断即短路)
+    static let fpsProbeOn = ProcessInfo.processInfo.environment["YETERM_DEBUG_FPS"] != nil
+    private var fpsPrev: CFTimeInterval = 0
+    private var fpsGaps: [Double] = []
+    private var fpsReportAt: CFTimeInterval = 0
+
+    /// 统计渲染节拍间隔,每 5 秒报一次(平均 / 最差 / 达标率)。
+    /// 关注的是**最差值**:双缓冲若真被 nextDrawable 卡住,平均值可能看不出来,
+    /// 但会甩出若干个"两倍周期"的长间隔。
+    private func tickFPS(now: CFTimeInterval, dw: Int, dh: Int) {
+        defer { fpsPrev = now }
+        guard fpsPrev > 0 else { fpsReportAt = now; return }
+        fpsGaps.append(now - fpsPrev)
+        guard now - fpsReportAt >= 5.0, !fpsGaps.isEmpty else { return }
+        fpsReportAt = now
+        let sorted = fpsGaps.sorted()
+        let avg = fpsGaps.reduce(0, +) / Double(fpsGaps.count)
+        let worst = sorted.last ?? 0
+        let p99 = sorted[max(0, Int(Double(sorted.count) * 0.99) - 1)]
+        FileHandle.standardError.write(Data(String(
+            format: "[fps] %dx%d 帧数=%d 平均=%.2fms(%.0ffps) p99=%.2fms 最差=%.2fms\n",
+            dw, dh, fpsGaps.count, avg * 1000, 1 / avg, p99 * 1000, worst * 1000).utf8))
+        fpsGaps.removeAll(keepingCapacity: true)
+    }
+
+    /// 尺寸自取版:给 frameImage()(auto-drive / 截图路径)用 —— 那条路不经
+    /// renderTick 的 occlusion guard,窗口被别的窗口挡住时照样能出账。
+    private func dumpVRAM() {
+        dumpVRAM(dw: sourceTexture?.width ?? 0, dh: sourceTexture?.height ?? 0)
+    }
+
+    private func dumpVRAM(dw: Int, dh: Int) {
+        var items: [(String, MTLTexture?)] = [
+            ("合成画面", sourceTexture),
+            ("辉光成品", bloomTexture),
+            ("噪点纹理", noiseTexture),
+        ]
+        var bufBytes = 0
+        for s in sources {
+            items += s.content.probeTextures
+            bufBytes += s.content.probeBufferBytes
+        }
+        items += effects?.probeTextures ?? []
+        items += plainBG?.probeTextures ?? []
+        var notes = "pane=\(sources.count) drawable=\(dw)×\(dh) 实例缓冲=\(VRAMProbe.mb(bufBytes))"
+        if let gif = plainBG?.probeGIFBytes, gif > 0 {
+            notes += " GIF预解码(CPU)=\(VRAMProbe.mb(gif))"
+        }
+        for (i, s) in sources.enumerated() {
+            if let u = s.content.probeAtlasUsage { notes += "\n  ── 图集[\(i)] \(u)" }
+        }
+        VRAMProbe.dump(device: mtl.device, items: items, extra: notes)
+    }
+
     /// 自测钩子(auto-drive 场景 29):被遮挡的窗口里 renderTick 在 occlusion
     /// guard 早退,动态背景永远推不了帧 —— 场景直接踩这一步(与 renderTick
     /// 同一条推进代码,真实 GUI 里由 renderTick 每帧干同一件事)
@@ -1260,6 +1357,7 @@ final class MetalOverlayView: MTKView {
     func frameImage(live: Bool = false) -> CGImage? {
         guard let tv = focusedViewProvider?() ?? sources.first?.view else { return nil }
         performCapture()
+        if VRAMProbe.enabled { dumpVRAM() }
         guard let src = sourceTexture else { return nil }
         let dw = src.width, dh = src.height
         var u = buildUniforms(tv: tv, dw: dw, dh: dh, now: CACurrentMediaTime(),
@@ -1370,6 +1468,12 @@ final class MetalOverlayView: MTKView {
 
         ensureCompositeMatchesDrawable()
         guard let src = sourceTexture else { return }
+
+        // 显存账本(YETERM_DEBUG_VRAM=1;缺省 enabled=false 直接短路,零成本)
+        if VRAMProbe.enabled { dumpVRAM(dw: dw, dh: dh) }
+        // 帧率哨兵(YETERM_DEBUG_FPS=1):drawable 由 3 张减到 2 张后,验证
+        // nextDrawable 没有把节拍拖慢 —— 被阻塞会直接表现为节拍间隔变长。
+        if Self.fpsProbeOn { tickFPS(now: now, dw: dw, dh: dh) }
 
         // 首帧即将上屏 → 开机动画正式开表(此前挂起输出全黑;见 playPowerOn)
         if powerOnPending {

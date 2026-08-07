@@ -308,6 +308,14 @@ public enum RenderDemo {
         }
         print("render-demo: \(opt.outPath) (\(finalTex.width)x\(finalTex.height)px, \(opt.cols)x\(opt.rows), font=\(opt.fontName), effects=\(opt.effects))")
 
+        // 显存对账(YETERM_DEBUG_VRAM=1):无头路径的泄漏哨兵。图集**按需增长**后
+        // 每次扩容都会换掉整张纹理,旧的必须随 ARC 走干净 —— 若泄漏,这里的
+        // 总分配会包含 512²+1024²+2048² 的累加(1+4+16MB),而不是只有末级那张。
+        if VRAMProbe.enabled {
+            FileHandle.standardError.write(Data(
+                "[vram] render-demo 结束:Metal 总分配=\(VRAMProbe.mb(mtl.device.currentAllocatedSize))\n".utf8))
+        }
+
         // 4) 逐像素比对
         if let ref = opt.compareWith {
             let rc = PixelCompare.compare(pngA: opt.outPath, pngB: ref, tolerance: opt.tolerance)

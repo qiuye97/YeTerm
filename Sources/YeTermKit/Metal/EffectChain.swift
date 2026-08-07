@@ -181,6 +181,22 @@ final class EffectChain {
 
     // MARK: - 余辉
 
+    /// 释放辉光降采样链(2026-08-07 内存优化:辉光关掉时回收)。
+    /// 起因:这些纹理**惰性建、建了就不放** —— 冷启动就关着 CRT 时压根不建
+    /// (探针账上直接没这几行),但运行中把 CRT 关掉,开着时建的那批一直躺着。
+    /// 5K 全屏下这条链约 30MB,白占。
+    ///
+    /// 安全性:全是"下次用到再建"的缓存,置 nil 即作废,重开特效走首建分支
+    /// (与冷启动同一条路);在途命令缓冲已 retain 住自己引用的纹理,不会被抽走。
+    /// ⚠️ 调用方必须**同时**把自己持有的 `bloomTexture`(指向 quarterA)置 nil,
+    /// 否则那个强引用会让整条链留在显存里 —— 释放就成了空转。
+    func releaseBloom() {
+        bloomHalf = nil
+        bloomQuarterA = nil
+        bloomQuarterB = nil
+        bloomQuarterC = nil
+    }
+
     /// 清空余辉累积(2026-08-07 重影修复):标签切换/布局挪位后,缓冲里躺着的
     /// 是**旧几何/旧频道**的画面,拖出来就是一套错位重影。置 nil 即作废 ——
     /// 下次累积走"首建"分支,时间差把垃圾 prev 衰减干净(与冷启动同一条路)。
@@ -251,6 +267,13 @@ final class EffectChain {
 
     func invalidatePipelines() {
         renderer.invalidatePipelines()
+    }
+
+    /// 显存账本条目(VRAMProbe 诊断用,只读;不参与渲染)
+    var probeTextures: [(String, MTLTexture?)] {
+        [("bloom.half", bloomHalf), ("bloom.quarterA", bloomQuarterA),
+         ("bloom.quarterB", bloomQuarterB), ("bloom.quarterC", bloomQuarterC),
+         ("burnIn.A", burnA), ("burnIn.B", burnB)]
     }
 
     private func makeTarget(w: Int, h: Int) -> MTLTexture? {
