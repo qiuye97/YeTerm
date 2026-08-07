@@ -117,9 +117,15 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             let topBar = max(0, bounds.height - (window?.contentLayoutRect.height ?? bounds.height))
             // 多标签时标签栏再让一条(tabBarReserve;单标签为 0):
             //   盒绘条:标题栏 → margin → 盒绘条 → 文字;玻璃条:标题栏 → 玻璃条 → margin → 文字
-            splitHost?.frame = NSRect(x: inset, y: inset,
-                                      width: bounds.width - inset * 2,
-                                      height: bounds.height - inset * 2 - topBar - tabBarReserve)
+            let newSplitFrame = NSRect(x: inset, y: inset,
+                                       width: bounds.width - inset * 2,
+                                       height: bounds.height - inset * 2 - topBar - tabBarReserve)
+            // 终端区挪位后必须重捕获(2026-08-07 重影修复配套):布局跑在捕获之后
+            // 的话,合成画面还钉着旧落点 —— 文字画在挪位前的位置上
+            if splitHost?.frame != newSplitFrame {
+                splitHost?.frame = newSplitFrame
+                (overlayView as? MetalOverlayView)?.scheduleCapture()
+            }
             crtBarRect = crtBarHeight > 0
                 ? NSRect(x: inset, y: bounds.height - topBar - inset - crtBarHeight,
                          width: bounds.width - inset * 2, height: crtBarHeight)
@@ -278,11 +284,15 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - overlay 几何供给
 
-    /// 各 pane 及分割线在 overlay 坐标系(AppKit y-up)的位置
+    /// 各 pane 及分割线在 overlay 坐标系(AppKit y-up)的位置。
+    /// ⚠️ 只数 **activePanes**(2026-08-07 重影事故):多标签后 `panes` = 全部标签
+    /// 的 pane,后台标签的视图不在窗口层级里,convert 会退化出 (0,·) 的垃圾矩形,
+    /// 整幅后台画面被叠画在活动画面上 —— 用户实测的"切标签重影/打字被盖住"
+    /// 全由这一处引起(probe-windows 的 draws 取证钉死)。
     private func currentLayout() -> (panes: [(view: EventTerminalView, rect: CGRect)], dividers: [CGRect]) {
         guard let ov = overlay else { return ([], []) }
         var paneRects: [(EventTerminalView, CGRect)] = []
-        for p in panes {
+        for p in activePanes {
             paneRects.append((p.terminalView, p.terminalView.convert(p.terminalView.bounds, to: ov)))
         }
         var dividers: [CGRect] = []
@@ -326,6 +336,19 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     var overlayForTesting: MetalOverlayView? { overlay }
     var crtTabBarVisibleForTesting: Bool { root.crtBarRect != nil && overlay?.tabStrip != nil }
     var glassTabBarVisibleForTesting: Bool { glassBarHost?.isHidden == false }
+    /// 几何取证(2026-08-07 重影排查)
+    var tabBarGeometryForTesting: String {
+        let pane = activePanes.first.map { $0.terminalView.convert($0.terminalView.bounds, to: overlay!) }
+        let font = activePanes.first?.terminalView.font
+            ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let scale = window?.backingScaleFactor ?? 2
+        let stripTex = tabStrip?.render(font: font, scale: scale)
+        let cell = GlyphAtlas.cellSize(font: font, scale: scale)
+        return "rootH=\(root.bounds.height) margin=\(root.marginInset) reserve=\(root.tabBarReserve) "
+            + "crtBarH=\(root.crtBarHeight) crtBarRect=\(String(describing: root.crtBarRect)) "
+            + "splitHost=\(splitHost.frame) paneRect=\(String(describing: pane)) "
+            + "cellPx=\(cell) stripTex=\(stripTex.map { "\($0.width)x\($0.height)" } ?? "nil")"
+    }
 
     private func makePane(cwd: String? = nil, into tab: Tab) -> TerminalPane {
         let pane = TerminalPane(options: options, cwd: cwd)
@@ -580,6 +603,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         activeTab?.rootView?.removeFromSuperview()
         activeTabIndex = index
         mountActiveTab()
+        overlay?.resetBurnIn()         // 上一"频道"的余辉别拖进新频道(重影修复)
         overlay?.playChannelSwitch()   // 内部尊重设置开关;普通模式已被钳 false
         overlay?.scheduleCapture()
         refreshTabBar()
@@ -618,6 +642,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             tree.autoresizingMask = [.width, .height]
             splitHost.addSubview(tree)
         }
+        // 切入的标签整幅置脏(2026-08-07 重影修复的另一半):后台期间它可能被
+        // 窗口缩放/标签栏出没牵连改过尺寸,脏行追踪跨不过这些事件,全量重画兜底
+        tab.panes.forEach { overlay?.markAllDirty(view: $0.terminalView) }
         tab.hasActivity = false
         updatePaneInsets()
         window?.title = tab.title

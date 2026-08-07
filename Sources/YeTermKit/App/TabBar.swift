@@ -221,7 +221,8 @@ private struct GlassTabBarView: View {
                         }
                     }
                 }
-                .padding(3)
+                .padding(.vertical, 3)
+                .padding(.horizontal, 8)   // 端头多留一点:胶囊外轮廓的圆弧别啃到首尾格
             }
             newButton
         }
@@ -268,17 +269,19 @@ private struct GlassTabBarView: View {
         .help(L("新建标签页(⌘T)"))
     }
 
-    /// 容器玻璃底:26 上真 Liquid Glass,15 回落毛玻璃材质
+    /// 容器玻璃底:26 上真 Liquid Glass,15 回落毛玻璃材质。
+    /// 外轮廓用 **Capsule**(2026-08-07 用户实测:圆角矩形和内侧选中胶囊的
+    /// 端头弧度不一致,参考图 Terminal.app 的条两端就是全圆的)
     /// 【学】@ViewBuilder + #available:同一段界面按系统版本给两种实现,
     ///      编译期都保留、运行时按版本走(部署目标 15、SDK 26 的标准写法)。
     @ViewBuilder
     private func glassContainer<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         if #available(macOS 26.0, *) {
             content()
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10))
+                .glassEffect(.regular, in: Capsule())
         } else {
             content()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .background(.ultraThinMaterial, in: Capsule())
         }
     }
 

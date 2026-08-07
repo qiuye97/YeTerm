@@ -95,11 +95,46 @@ public enum WindowProbe {
         pump(0.5)
         check("CRT 恢复后回盒绘条", tabbedWC?.crtTabBarVisibleForTesting == true)
 
+        // ── 回归(2026-08-07 用户实测三连 bug):切标签重影 / 输入不可见 / 焦点 ──
+        // tab2 活动期间给 tab1 的 shell 灌输出(后台标签内容照样变),再切回:
+        // 画面必须是 tab1 的**完整现状**,焦点必须回到 tab1 的 pane
+        let t1pane = tabbedWC?.tabs[0].panes.first
+        t1pane?.terminalView.send(txt: "echo GHOST-CHECK\n")
+        pump(0.8)
+
         // ⌘1 直达切回第 1 页
         tabbedWC?.selectTab(0)
-        pump(0.3)
+        pump(0.8)
         check("selectTab(0) 切回第 1 页", tabbedWC?.activeTabIndex == 0)
         check("切回后活动 pane 只剩标签 1 的", tabbedWC?.activePanes.count == 1)
+        check("切回后焦点在 tab1 的 pane(否则打字进隐形的 tab2)",
+              tabbedWC?.window?.firstResponder === t1pane?.terminalView,
+              detail: "firstResponder=\(type(of: tabbedWC?.window?.firstResponder as Any))")
+        let ghostShot = NSTemporaryDirectory() + "yeterm-window-probe-ghost.png"
+        _ = tabbedWC?.overlayForTesting?.dumpFrame(to: ghostShot)
+        print("frame: \(ghostShot)")
+        // 合成只许画**活动标签**的 pane(重影事故的回归断言:后台 pane 混进
+        // draws 就是全屏重影 + 打字被盖住)
+        check("合成布局只含活动标签的 1 个 pane",
+              tabbedWC?.overlayForTesting?.layoutProvider?().panes.count == 1,
+              detail: "panes=\(tabbedWC?.overlayForTesting?.layoutProvider?().panes.count ?? -1)")
+        let ghostComp = NSTemporaryDirectory() + "yeterm-window-probe-ghost-composite.png"
+        tabbedWC?.overlayForTesting?.dumpDrawsOnNextCapture = true
+        _ = tabbedWC?.overlayForTesting?.dumpComposite(to: ghostComp)
+        print("frame: \(ghostComp)")
+        print("  [几何] \(tabbedWC?.tabBarGeometryForTesting ?? "nil")")
+        if let t = t1pane?.terminalView.getTerminal() {
+            for row in 0..<min(5, t.rows) {
+                guard let line = t.getLine(row: row) else { continue }
+                var s = ""
+                for col in 0..<t.cols {
+                    let ch = t.getCharacter(for: line[col])
+                    if ch != "\0" { s.append(ch) }
+                }
+                print("  [t1 屏 r\(row)] \(s.trimmingCharacters(in: .whitespaces))")
+            }
+            print("  [t1 尺寸] cols=\(t.cols) rows=\(t.rows)")
+        }
         // 关掉后台那页 → shell 终止、标签回收
         tabbedWC?.closeTab(at: 1)
         pump(0.6)

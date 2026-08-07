@@ -181,20 +181,44 @@ final class EffectChain {
 
     // MARK: - 余辉
 
+    /// 清空余辉累积(2026-08-07 重影修复):标签切换/布局挪位后,缓冲里躺着的
+    /// 是**旧几何/旧频道**的画面,拖出来就是一套错位重影。置 nil 即作废 ——
+    /// 下次累积走"首建"分支,时间差把垃圾 prev 衰减干净(与冷启动同一条路)。
+    func resetBurnIn() {
+        burnA = nil
+        burnB = nil
+    }
+
     /// 内容更新驱动一次累积(对应原版 kterminal.onImagePainted)。返回最新累积纹理。
     func accumulateBurnIn(content: MTLTexture, time: Float, burnInTime: Float,
                           cursorRect: SIMD4<Float> = .zero, cursorStyle: Float = 0,
                           wait: Bool) -> MTLTexture? {
         let w = max(content.width / 2, 1), h = max(content.height / 2, 1)
+        var justCreated = false
         if burnA == nil || burnA!.width != w || burnA!.height != h {
             burnA = makeTarget(w: w, h: h)
             burnB = makeTarget(w: w, h: h)
             burnUseA = true
             burnInLastUpdate = 0
             prevLastUpdate = 0
+            justCreated = true
         }
         guard let a = burnA, let b = burnB,
               let cmd = ctx.queue.makeCommandBuffer() else { return nil }
+        // 新建缓冲必须显式清零(2026-08-07 重影修复):Metal 纹理初始内容
+        // **未定义**,常直接复用刚释放的旧缓冲内存 —— resetBurnIn 置 nil 重建后,
+        // "垃圾"恰好就是上一个频道的旧帧,余辉把它原样拖回屏幕。
+        // 【学】loadAction=.clear 的空 render pass = GPU 版 memset。
+        if justCreated {
+            for tex in [a, b] {
+                let pass = MTLRenderPassDescriptor()
+                pass.colorAttachments[0].texture = tex
+                pass.colorAttachments[0].loadAction = .clear
+                pass.colorAttachments[0].storeAction = .store
+                pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+                cmd.makeRenderCommandEncoder(descriptor: pass)?.endEncoding()
+            }
+        }
         let target = burnUseA ? a : b
         let prev = burnUseA ? b : a
         prevLastUpdate = burnInLastUpdate

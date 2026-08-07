@@ -243,8 +243,21 @@ final class MetalOverlayView: MTKView {
     // 控制器持有(strong),这里 weak 引用防环;frame 由控制器布局时算好经闭包供给
     weak var tabStrip: TabStripController?
     var tabStripFrameProvider: (() -> CGRect?)?
+    // 布局几何签名(重影修复):pane 落点/标签条位置上次捕获时的快照
+    private var lastLayoutSignature: [CGRect] = []
 
     func makeTabStrip() -> TabStripController { TabStripController(ctx: mtl) }
+
+    /// 单视图整幅置脏(标签切换:后台期间的脏行追踪跨越了挂载/尺寸变化,不可信)
+    func markAllDirty(view: EventTerminalView) {
+        sources.first { $0.view === view }?.allDirty = true
+        scheduleCapture()
+    }
+
+    /// 清空余辉缓冲(标签切换用:上一"频道"的画面别拖到新频道上当重影)
+    func resetBurnIn() {
+        effects?.resetBurnIn()
+    }
 
     // ---- 粘贴确认面板(v1.2 #6,v1.3 改 OSD 同款画布合成) ----
     private(set) var pasteGuardController: PasteGuardController?
@@ -736,10 +749,16 @@ final class MetalOverlayView: MTKView {
                 boot.tick(now: now)
                 let font = focused?.font ?? NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
                 if let tex = boot.render(font: font, scale: scale) {
+                    // 落点 = 首 pane 左上(2026-08-07 修复:标题栏透明化+标签栏后,
+                    // 画布钉 (0,0) 会顶进红绿灯条/标签栏下面;跟内容同坐标就自动
+                    // 让出标题栏、标签栏与 margin,画布尺寸本来就按 pane 网格建)
+                    let anchor = layout.panes.first?.rect
+                    let bx = ((anchor?.minX ?? 0) * scale).rounded()
+                    let by = anchor.map { ((bounds.height - $0.maxY) * scale).rounded() } ?? 0
                     focusedCellPx = boot.cellPx
-                    focusedRectPx = CGRect(x: 0, y: 0, width: CGFloat(tex.width), height: CGFloat(tex.height))
+                    focusedRectPx = CGRect(x: bx, y: by, width: CGFloat(tex.width), height: CGFloat(tex.height))
                     let bootDraws: [(texture: MTLTexture?, viewport: MTLViewport)] =
-                        [(tex, MTLViewport(originX: 0, originY: 0,
+                        [(tex, MTLViewport(originX: max(0, bx), originY: max(0, by),
                                            width: Double(tex.width), height: Double(tex.height),
                                            znear: 0, zfar: 1))]
                     if let cmd = mtl.queue.makeCommandBuffer() {
@@ -758,6 +777,16 @@ final class MetalOverlayView: MTKView {
         // 高斯模糊)。判定偏保守:有脏行/全脏/预编辑/选区任一存在都算"变了"。
         // ⚠️ 必须在 pane 循环之前算:循环里会把 dirtyRows 消费清空。
         var contentChanged = lastPreedit != nil || bloomTexture == nil
+        // 布局几何变化(2026-08-07 重影修复):标签切换/标签栏出没/边距切换会把
+        // pane 落点整体挪位 —— 此时即使一个脏行都没有,合成画面也换了几何,
+        // 辉光/余辉必须跟着重算;否则旧几何的辉光(模糊层)叠在新几何的内容上,
+        // 全屏一套错位的"重影"(用户实测 bug1/bug2 的根因)
+        let layoutSig = layout.panes.map { $0.rect } + [tabStripFrameProvider?() ?? .zero]
+        if layoutSig != lastLayoutSignature {
+            lastLayoutSignature = layoutSig
+            contentChanged = true
+            effects?.resetBurnIn()   // 旧几何的余辉不能拖到新几何上(错位重影)
+        }
         for s in sources where s.allDirty || !s.dirtyRows.isEmpty { contentChanged = true }
         for (view, _) in layout.panes where view.selectionSnapshot != nil { contentChanged = true }
         // 选区"刚刚消失"的那一帧也算变化(2026-07-28 用户实测):只看"现在有
@@ -905,6 +934,16 @@ final class MetalOverlayView: MTKView {
                                              width: Double(spTex.width),
                                              height: Double(spTex.height),
                                              znear: 0, zfar: 1)))
+        }
+
+        // 取证口(2026-08-07 重影排查):打印本次合成的每一笔(探针置位)
+        if dumpDrawsOnNextCapture {
+            dumpDrawsOnNextCapture = false
+            for (i, d) in draws.enumerated() {
+                let v = d.viewport
+                FileHandle.standardError.write(Data(
+                    "  [draw \(i)] tex=\(d.texture.map { "\($0.width)x\($0.height)" } ?? "solid") viewport=(\(v.originX),\(v.originY) \(v.width)x\(v.height))\n".utf8))
+            }
         }
 
         guard let cmd = mtl.queue.makeCommandBuffer() else { return }
@@ -1178,6 +1217,17 @@ final class MetalOverlayView: MTKView {
             FileHandle.standardError.write(Data("frameImage: \(error)\n".utf8))
             return nil
         }
+    }
+
+    /// 取证口(2026-08-07 重影排查):下一次捕获把 draws 逐笔打到 stderr
+    var dumpDrawsOnNextCapture = false
+
+    /// 取证口(2026-08-07 重影排查):导出**原始合成纹理**(CRT 处理前)。
+    /// 残影在这里 = 捕获/落点问题;不在 = 辉光/余辉等派生层问题。
+    func dumpComposite(to path: String) -> Bool {
+        performCapture()
+        guard let src = sourceTexture, let img = renderer.readback(src) else { return false }
+        return (try? PNGWriter.write(img, to: path)) != nil
     }
 
     func dumpFrame(to path: String) -> Bool {
