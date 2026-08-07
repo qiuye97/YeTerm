@@ -196,6 +196,24 @@ public enum SettingsProbe {
         model.loadPreset("Default Amber")
         check("普通模式点 CRT 预设即切回", model.crtEffectsEnabled)
 
+        // 壁纸跟着预设走(2026-08-07 用户需求;此前 load 用 ?? 兜底当前值,
+        // 换预设时上一套的壁纸一路残留 = "所有预设共用一张")。钉住新语义:
+        // 带壁纸的配置载入后,再载入不带壁纸字段(nil)的出厂预设,壁纸必须清空
+        var wpCfg = CRTConfig()
+        wpCfg.plainBackgroundImage = "/tmp/probe-壁纸.png"
+        wpCfg.plainBackgroundImageMode = 3
+        wpCfg.crtBackgroundImageChroma = true
+        let wpModel = SettingsModel(from: wpCfg)
+        wpModel.persistenceEnabled = false
+        let wpLoaded = wpModel.plainBackgroundImagePath == "/tmp/probe-壁纸.png"
+            && wpModel.plainBackgroundImageMode == 3 && wpModel.crtBackgroundImageChroma
+        wpModel.load(config: Presets.byName("Default Amber")!)
+        check("壁纸跟预设走:载入无壁纸预设即清空(不残留上一套)",
+              wpLoaded && wpModel.plainBackgroundImagePath.isEmpty
+              && wpModel.plainBackgroundImageMode == 0
+              && !wpModel.crtBackgroundImageChroma,
+              detail: "loaded=\(wpLoaded) path=\(wpModel.plainBackgroundImagePath) mode=\(wpModel.plainBackgroundImageMode)")
+
         // ---- v1.4 三项新配置(「文字发光」)----
         // ① 二进制合同:CRTUniforms 尾部追加四个 float(emissiveModel/bloomStyle/
         //    overdrive/overdriveKnee)后 size = 232。setFragmentBytes 传的是 .size,

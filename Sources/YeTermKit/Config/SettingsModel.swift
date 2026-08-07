@@ -191,11 +191,16 @@ final class SettingsModel: ObservableObject {
         plainTextColorHex = c.plainTextColor ?? plainTextColorHex
         plainBackgroundColorHex = c.plainBackgroundColor ?? plainBackgroundColorHex
         if let pa = c.plainAnsiColors, pa.count == 16 { plainAnsiHex = pa }
-        plainBackgroundImagePath = c.plainBackgroundImage ?? plainBackgroundImagePath
-        plainBackgroundImageMode = c.plainBackgroundImageMode ?? plainBackgroundImageMode
-        plainBackgroundBlur = c.plainBackgroundBlur ?? plainBackgroundBlur
-        plainBackgroundPixelPalette = c.plainBackgroundPixelPalette ?? plainBackgroundPixelPalette
-        crtBackgroundImageChroma = c.crtBackgroundImageChroma ?? crtBackgroundImageChroma
+        // 背景图五件套是**预设携带字段,nil 回落出厂缺省、不回落当前值**
+        // (2026-08-07 用户需求「壁纸每个预设独立设置」):此前用 ?? 兜底当前值,
+        // 切预设时上一套的壁纸会一路残留 —— 表现成"所有预设共用一张图"。
+        // 改直赋后:没配壁纸的预设回到无图,各预设的壁纸记在各自的
+        // override/profile 里(同 bitRate/frameEnabled 的"跟着预设走"处理)
+        plainBackgroundImagePath = c.plainBackgroundImage ?? ""
+        plainBackgroundImageMode = c.plainBackgroundImageMode ?? 0
+        plainBackgroundBlur = c.plainBackgroundBlur ?? 0.5
+        plainBackgroundPixelPalette = c.plainBackgroundPixelPalette ?? 0
+        crtBackgroundImageChroma = c.crtBackgroundImageChroma ?? false
         inheritCwd = c.inheritCwd ?? inheritCwd
         scrollbackLines = c.scrollbackLines ?? scrollbackLines
         optionAsMeta = c.optionAsMeta ?? optionAsMeta
@@ -299,6 +304,15 @@ final class SettingsModel: ObservableObject {
                 // 文字颜色入白名单(2026-08-03:与 fontColor 同类的观感微调,
                 // 用户给经典配色预设调的文字颜色应被记住)
                 c.crtTextColor = o.crtTextColor ?? c.crtTextColor
+                // 背景图五件套入白名单(2026-08-07 用户需求「壁纸每个预设独立」):
+                // 出厂恒 nil(内置预设从不带图),用户给某预设配的壁纸记在它的
+                // override 里,换预设各用各的。经典 CRT 组照旧不铺(判定在
+                // TerminalWindowController.applyCRTMode,按预设名,不受此处影响)
+                c.plainBackgroundImage = o.plainBackgroundImage ?? c.plainBackgroundImage
+                c.plainBackgroundImageMode = o.plainBackgroundImageMode ?? c.plainBackgroundImageMode
+                c.plainBackgroundBlur = o.plainBackgroundBlur ?? c.plainBackgroundBlur
+                c.plainBackgroundPixelPalette = o.plainBackgroundPixelPalette ?? c.plainBackgroundPixelPalette
+                c.crtBackgroundImageChroma = o.crtBackgroundImageChroma ?? c.crtBackgroundImageChroma
             }
             // 经典 CRT 锁定兜底(旧档可能存过"关"):设备还原主题恒为 CRT 开;
             // 文字颜色恒纯白(2026-08-03,同一条锁定逻辑,防旧 override 残值)

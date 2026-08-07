@@ -519,7 +519,7 @@ private struct BackgroundImageCard: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else if model.plainBackgroundImagePath.isEmpty {
-                Text(L("未设置 —— 背景为上方的纯背景色。"))
+                Text(L("未设置 —— 背景为上方的纯背景色。壁纸跟着预设走,每个预设可各配一张。"))
                     .font(.caption).foregroundStyle(.tertiary)
             } else {
                 Text((model.plainBackgroundImagePath as NSString).lastPathComponent)

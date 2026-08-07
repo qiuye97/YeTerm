@@ -167,7 +167,7 @@
 "背景图片" = "Background Image";
 "选择图片…" = "Choose Image…";
 "选择终端背景图片" = "Choose a background image for the terminal";
-"未设置 —— 背景为上方的纯背景色。" = "Not set — the background is the solid color above.";
+"未设置 —— 背景为上方的纯背景色。壁纸跟着预设走,每个预设可各配一张。" = "Not set — the background is the solid color above. Wallpaper is per-preset: each preset keeps its own.";
 "无变化" = "As-is";
 "毛玻璃" = "Frosted glass";
 "像素风" = "Pixelated";
