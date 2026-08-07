@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// 📖 初学者导读 —— 43 套内置主题的"出厂参数表"+ 每套一段出处简介
+// 📖 初学者导读 —— 44 套内置主题的"出厂参数表"+ 每套一段出处简介
 //
 // 这个文件:纯数据,分两组(v1.2 预设大更新,用户裁决的三分法:
 //   经典 CRT / 经典配色 / 我的配置 —— 前两组在这里,"我的配置"是用户
@@ -8,7 +8,7 @@
 //      设备主题 + YeTerm 补充的历史机器,磷光颜色/弧度/余辉都按设备特性调;
 //      v1.2 逐套打磨:抖动全部 ≤0.08、闪烁/噪点收敛到实用水平(还原味道
 //      保留,长时间使用不晃眼 —— 用户裁决"兼容还原和实用性")。
-//   ② 经典配色(22 套):配色方案与风格创作 —— 程序员圈现代名配色
+//   ② 经典配色(23 套):配色方案与风格创作 —— 程序员圈现代名配色
 //      (Solarized/Dracula/Catppuccin…)+ crterm 里的非设备风格创作
 //      (Neon Cyan/Plasma/E-Ink…)。现代配色**携带官方 ANSI 16 色表**
 //      (ansi 参数):vim/htop 的彩色输出也是该主题的原汁色板。
@@ -57,7 +57,7 @@ public enum Presets {
     }
 
     /// 预设名的**显示**用名。预设名本身是标识符(见 blurb 的说明),
-    /// 只在往界面上摆的时候过一层翻译 —— 43 套里只有「MS-DOS 蓝」带中文。
+    /// 只在往界面上摆的时候过一层翻译 —— 44 套里只有「MS-DOS 蓝」带中文。
     public static func displayName(_ name: String) -> String { L(name) }
 
     /// 分组(设置页按组分区展示;"我的配置"= 用户配置区,不在此表)
@@ -303,7 +303,7 @@ public enum Presets {
     /// 创作的(全套弧度/机壳/扫描线/噪点),统一掉就没了性格。
     private static let schemeUnifyExempt: Set<String> = ["Deep Blue", "Matrix"]
 
-    /// 统一后的发光参数(全部 20 套同值)。
+    /// 统一后的发光参数(全部 21 套同值)。
     /// · `bloom 0.3` —— 配色方案要的是"字在发光"而不是"糊成一片";辉光一大彩色就互相串染。
     /// · `overdrive 0.4 / knee 0.55` —— 比经典 CRT 那组(0.85/0.20)克制得多:
     ///   那组是**单色**磷光屏,芯部发白不损失信息;这组是**彩色**配色方案,
@@ -390,6 +390,22 @@ public enum Presets {
                     "#7a6bff", "#ff6bff", "#5ee8ff", "#e8c8e8",
                     "#4a3070", "#ff85bd", "#85ffd0", "#ffe08a",
                     "#a191ff", "#ff9bff", "#93f2ff", "#ffeaff"]),
+        // VaporWave(2026-08-07 用户点名新增,Plasma 的姊妹篇):Plasma 是
+        // Synthwave(高饱和霓虹、午夜飙车),这套是 Vaporwave(褪色粉彩、午后
+        // 商场)。五色盘用社区公认的蒸汽波调色板原色:粉 #ff71ce / 青 #01cdfe /
+        // 薄荷 #05ffa1 / 淡紫 #b967ff / 奶黄 #fffb96,底色褪色靛紫;默认文字取
+        // 粉彩青(与 Plasma 的粉字反极,姊妹不撞脸);saturation 0.9 故意把默认
+        // 文字往白洗 —— "褪色感"正是蒸汽波与霓虹的分水岭。配方舟像素:全角
+        // 像素中文字正是蒸汽波美学的标志元素(ＡＥＳＴＨＥＴＩＣ)。
+        make(name: "VaporWave", bg: "#1e1442", fg: "#7ae7ff",
+             ambient: 0.1, bloom: 0.7, brightness: 0.6, burnIn: 0.1, chroma: 1, contrast: 0.85,
+             flickering: 0.1, glowing: 0.2, hsync: 0, jitter: 0.08, raster: 4, rgbShift: 0.1,
+             saturation: 0.9, curvature: 0, noise: 0.1, opacity: 1, margin: 0.1, frameSize: 0,
+             font: "Ark Pixel 12px Mono zh_cn",
+             ansi: ["#2b2158", "#ff5c8a", "#05ffa1", "#ffe08a",
+                    "#6e8bff", "#b967ff", "#01cdfe", "#e8def5",
+                    "#5a4a96", "#ff8fc0", "#7dffc9", "#fffb96",
+                    "#9db1ff", "#d29bff", "#7ae7ff", "#f8f2ff"]),
         make(name: "Boring", bg: "#000000", fg: "#ffffff",
              ambient: 0.1, bloom: 0.5, brightness: 0.5, burnIn: 0.05, chroma: 1, contrast: 0.8,
              flickering: 0, glowing: 0.1, hsync: 0, jitter: 0, raster: 4, rgbShift: 0,
@@ -587,6 +603,7 @@ public enum Presets {
         "Neon Cyan": "现代霓虹风创作:高辉光青色荧光+半透明窗口,赛博都市夜景的配色。",
         "Ghost Terminal": "低对比灰+高透明度,\"幽灵\"一样安静地叠在桌面上——适合当常驻的监控窗。",
         "Plasma": "等离子粉紫+高辉光+色散,合成器浪潮(Synthwave)审美的终端演绎。",
+        "VaporWave": "蒸汽波审美:褪色靛紫底+粉/青/薄荷/淡紫/奶黄五色盘(社区公认的蒸汽波调色板),全角像素中文字自带蒸汽感。比 Plasma 的霓虹慢半拍——午后商场的褪色梦。",
         "Boring": "名字即注释:全部特效关到最低的纯白字+系统字体。对照组,也是排查\"这是特效问题还是内容问题\"的基准。",
         "E-Ink": "电子墨水风:米白纸底+深灰字,高余辉模拟墨水屏的残影。类纸阅读感,白天最舒服的一档。",
         "Matrix": "《黑客帝国》数字雨绿(#00ff41)。配轻扫描线与余辉,ANSI 16 色也是全绿单色阶(层次靠亮度,连报错都是绿的)——Wake up, Neo.",

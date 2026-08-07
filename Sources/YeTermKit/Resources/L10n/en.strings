@@ -489,6 +489,7 @@
 "现代霓虹风创作:高辉光青色荧光+半透明窗口,赛博都市夜景的配色。" = "A modern neon original: heavy bloom on cyan phosphor with a translucent window — the palette of a cyber city at night.";
 "低对比灰+高透明度,\"幽灵\"一样安静地叠在桌面上——适合当常驻的监控窗。" = "Low-contrast grey at high transparency, sitting over your desktop as quietly as a ghost — good as an always-on monitoring window.";
 "等离子粉紫+高辉光+色散,合成器浪潮(Synthwave)审美的终端演绎。" = "Plasma pink-purple with heavy bloom and color fringing: synthwave aesthetics rendered as a terminal.";
+"蒸汽波审美:褪色靛紫底+粉/青/薄荷/淡紫/奶黄五色盘(社区公认的蒸汽波调色板),全角像素中文字自带蒸汽感。比 Plasma 的霓虹慢半拍——午后商场的褪色梦。" = "Vaporwave aesthetics: faded indigo backdrop with the canonical pink/cyan/mint/lavender/cream palette. The full-width CJK pixel font carries the steam. Half a beat slower than Plasma's neon — a faded daydream in an afternoon mall.";
 "名字即注释:全部特效关到最低的纯白字+系统字体。对照组,也是排查\"这是特效问题还是内容问题\"的基准。" = "The name says it all: every effect at minimum, plain white text in a system font. A control group, and the baseline for telling \"is this the effects or the content?\" apart.";
 "电子墨水风:米白纸底+深灰字,高余辉模拟墨水屏的残影。类纸阅读感,白天最舒服的一档。" = "E-paper style: warm white paper with dark grey text, high persistence standing in for e-ink ghosting. Paper-like and the most comfortable option in daylight.";
 "《黑客帝国》数字雨绿(#00ff41)。配轻扫描线与余辉,ANSI 16 色也是全绿单色阶(层次靠亮度,连报错都是绿的)——Wake up, Neo." = "The digital-rain green of The Matrix (#00ff41), with light scanlines and persistence. Even the 16 ANSI colors are a single green ramp (depth comes from brightness — errors are green too). Wake up, Neo.";

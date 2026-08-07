@@ -83,7 +83,7 @@ public enum SettingsProbe {
         check("经典 CRT 锁定判定", Presets.isClassicCRT("Apple ][") && !Presets.isClassicCRT("Dracula"))
         check("经典配色带普通模式配色",
               Presets.classicSchemes.allSatisfy { $0.plainTextColor != nil && $0.plainBackgroundColor != nil })
-        // v1.2 补丁:22 套经典配色全部携带专属 ANSI 16 色(官方表或按气质原创)
+        // v1.2 补丁:23 套经典配色全部携带专属 ANSI 16 色(官方表或按气质原创)
         check("经典配色 ANSI 表全覆盖",
               Presets.classicSchemes.allSatisfy { $0.ansiColors?.count == 16 && $0.plainAnsiColors?.count == 16 })
         // 每套系统预设必须配字体,且字体名可解析(内置注册族 or 系统已装族)
@@ -138,8 +138,8 @@ public enum SettingsProbe {
         let notUniform = unified.filter {
             $0.bloom != 0.3 || $0.overdrive != 0.4 || $0.overdriveKnee != 0.55 || $0.bloomShape != 1
         }.map { $0.name ?? "?" }
-        check("经典配色:辉光与文字发光全部统一(20 套同值)",
-              notUniform.isEmpty && unified.count == 20,
+        check("经典配色:辉光与文字发光全部统一(21 套同值)",
+              notUniform.isEmpty && unified.count == 21,
               detail: notUniform.isEmpty ? "count=\(unified.count)" : notUniform.joined(separator: ", "))
         // 例外两套必须**原样保留**(别被后人"顺手统一"掉)
         check("Deep Blue / Matrix 保留设备气质",
