@@ -5,6 +5,44 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.0] — 2026-08-07
+
+### Added
+
+- **Animated wallpapers: GIF and video backgrounds.** The background image
+  picker now accepts GIF, mp4, mov and m4v. The player acts purely as a frame
+  source — each frame is fed as a texture into the existing background
+  pipeline, so in CRT mode the video bulges with the screen curvature, picks
+  up scanlines, and can be phosphor-tinted, exactly like a still image. Video
+  is hardware-decoded (AVFoundation, zero-copy into Metal), always muted, and
+  loops seamlessly; GIFs are pre-decoded within a memory budget. A frame-rate
+  cap (15/30/60 fps, default 30) bounds the on-screen update rate — lower
+  saves power — and playback pauses while the window is hidden. All five
+  preprocessing effects (frosted glass, pixel-art, darken, mono film) apply
+  per-frame.
+- **Per-preset wallpapers.** Background image settings now travel with the
+  preset instead of being one global value — each preset remembers its own
+  image, effect and parameters. A one-time migration cleans up stale wallpaper
+  values that old full-snapshot overrides had captured; the wallpaper you
+  currently see stays with the preset it's on.
+- **Darken level slider** for the darken background effect: 0 = original
+  image, 0.5 = the previous fixed look (bit-exact), 1 = black.
+- **Unfocused cursor styles.** When keyboard focus leaves the terminal (other
+  app, or the search field), the block cursor becomes a hollow outline, the
+  underline and bar cursors dim to half strength, and blinking stops — same
+  conventions as Terminal.app. An unfocused cursor also no longer feeds the
+  phosphor-persistence trail.
+- **VaporWave preset** in the Classic Color Schemes group: the canonical
+  vaporwave palette (pink `#ff71ce`, cyan `#01cdfe`, mint `#05ffa1`, lavender
+  `#b967ff`, cream `#fffb96`) on a faded violet backdrop, with the CJK pixel
+  font for that full-width ＡＥＳＴＨＥＴＩＣ. Sister theme to Plasma's
+  synthwave.
+- **Open a folder in YeTerm from Finder.** Right-click helpers (超级右键 and
+  friends), dragging a folder onto the Dock icon, and `open -a YeTerm <dir>`
+  all open a new window with the shell already in that directory. Launching
+  the app this way replaces the default first window with the folder window.
+  A `--cwd <dir>` flag covers argument-style integrations.
+
 ## [1.2.1] — 2026-08-06
 
 ### Fixed
