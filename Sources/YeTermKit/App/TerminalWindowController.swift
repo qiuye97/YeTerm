@@ -730,6 +730,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard glassBarHost == nil else { return }
         let host = GlassTabBar.makeHostView(model: glassBarModel,
                                             onSelect: { [weak self] i in self?.selectTab(i) },
+                                            onClose: { [weak self] i in self?.closeTab(at: i) },
                                             onNew: { [weak self] in
                                                 self?.newTab(cwd: self?.currentWorkingDirectory)
                                             })

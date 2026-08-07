@@ -193,9 +193,10 @@ enum GlassTabBar {
 
     static func makeHostView(model: GlassTabBarModel,
                              onSelect: @escaping (Int) -> Void,
+                             onClose: @escaping (Int) -> Void,
                              onNew: @escaping () -> Void) -> NSView {
-        let host = NSHostingView(rootView: GlassTabBarView(model: model,
-                                                           onSelect: onSelect, onNew: onNew))
+        let host = NSHostingView(rootView: GlassTabBarView(model: model, onSelect: onSelect,
+                                                           onClose: onClose, onNew: onNew))
         host.autoresizingMask = []   // frame 由 RootView.layout 手排
         return host
     }
@@ -206,7 +207,11 @@ enum GlassTabBar {
 private struct GlassTabBarView: View {
     @ObservedObject var model: GlassTabBarModel
     let onSelect: (Int) -> Void
+    let onClose: (Int) -> Void
     let onNew: () -> Void
+    /// 鼠标悬浮的标签下标(悬浮时左侧浮出圆形关闭钮,参考图 Terminal.app 同款)
+    /// 【学】@State = 视图私有的可变状态,变了自动重画(类比 React useState)。
+    @State private var hovered: Int?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -229,24 +234,43 @@ private struct GlassTabBarView: View {
         .frame(height: GlassTabBar.height)
     }
 
+    /// 单元布局照参考图(2026-08-07 用户需求):标题**居中**;⌘N 角标钉右;
+    /// 悬浮时左侧浮出圆形 ✕ 关闭钮 —— 居中组与两侧件用 ZStack 分层,
+    /// 标题左右各让 40pt,长标题截断也不会撞上 ✕ / ⌘N
     private func tabCell(_ item: GlassTabItem, idx: Int) -> some View {
         let selected = (idx == model.selected)
-        return HStack(spacing: 6) {
-            if item.hasActivity {
-                Circle().fill(.secondary).frame(width: 5, height: 5)
+        return ZStack {
+            HStack(spacing: 6) {
+                if item.hasActivity {
+                    Circle().fill(.secondary).frame(width: 5, height: 5)
+                }
+                Text(item.title)
+                    .font(.system(size: 12, weight: selected ? .medium : .regular))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            Text(item.title)
-                .font(.system(size: 12, weight: selected ? .medium : .regular))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 2)
-            if idx < 9 {
-                Text("⌘\(idx + 1)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+            .padding(.horizontal, 40)
+            HStack {
+                if hovered == idx {
+                    Button(action: { onClose(idx) }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16, height: 16)
+                            .background(Circle().fill(.primary.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                    .help(L("关闭标签页"))
+                }
+                Spacer(minLength: 0)
+                if idx < 9 {
+                    Text("⌘\(idx + 1)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(.horizontal, 9)
         }
-        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity)
         .frame(height: GlassTabBar.height - 8)
         .background {
@@ -256,6 +280,13 @@ private struct GlassTabBarView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { onSelect(idx) }
+        .onHover { inside in
+            if inside {
+                hovered = idx
+            } else if hovered == idx {
+                hovered = nil
+            }
+        }
     }
 
     private var newButton: some View {
