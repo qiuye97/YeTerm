@@ -105,20 +105,27 @@ struct CRTUniforms {
     float2 bgImageUVScale;         // 240 aspect-fill 的 UV 缩放(float2 要 8 字节对齐,
                                    //     故排在两个 float 中间,前后无空洞)→ 248
     float bgImageChroma;           // 248 0=保留图片原色(缺省)/1=整张图荧光染色 → 252
-                                   //     (结构体按 float4 的 16 字节对齐补到 256)
+    float _padScreenInset;         // 252 对齐占位(下一个 float2 需 8 字节对齐)→ 256
+    // ── 屏幕内缩(2026-08-07 用户需求「机壳最小带」)────────────────────────
+    // 屏幕玻璃区从窗口边缘往里缩的量(每侧,padding 变换的 frameSize 语义;
+    // x=左右 y=上下)。缺省 0 = 屏幕充满窗口(1.2 语义,原行为**逐比特不变**)。
+    // GUI 在机壳开启时把 y 设为「标题栏高度」推出的值 —— 上下腾出等宽机壳带,
+    // 红绿灯/标题恰好落在带的垂直正中(带高=标题栏高,系统标题文字天然居中)。
+    float2 screenInset;            // 256 → 264(结构体按 float4 的 16 字节对齐补到 272)
 };
 
 // 二进制合同的编译期保险(v1.5.1 加):Swift 侧 CRTPass.swift 的同名结构体
 // stride 必须同为 256。两边任一处漏改字段,着色器**编译当场就炸**,而不是等到画面
 // 神秘错乱才回头猜 —— float2/float4 的对齐规则最容易在追加字段时踩空
 // (offsetof 在 MSL 里不可用,只能钉总大小;逐字段偏移由两侧的注释和探针盯着)。
-static_assert(sizeof(CRTUniforms) == 256, "CRTUniforms 与 Swift 侧 stride 不一致");
+static_assert(sizeof(CRTUniforms) == 272, "CRTUniforms 与 Swift 侧 stride 不一致");
 
 static inline float min2(float2 v) { return min(v.x, v.y); }
 static inline float rgb2grey(float3 v) { return dot(v, float3(0.21, 0.72, 0.04)); }
 
-// terminal_static.frag:36-41 / terminal_frame.frag:22-27(padded 版,两处语义必须一致)
-static inline float2 distortCoordinates(float2 coords, float screenCurvature, float frameSize) {
+// terminal_static.frag:36-41 / terminal_frame.frag:22-27(padded 版,两处语义必须一致)。
+// frameSize 改 float2(2026-08-07 机壳最小带:上下内缩量与左右可不同;标量 0 时不变)
+static inline float2 distortCoordinates(float2 coords, float screenCurvature, float2 frameSize) {
     float2 padded = coords * (float2(1.0) + frameSize * 2.0) - frameSize;
     float2 cc = padded - float2(0.5);
     float dist = dot(cc, cc) * screenCurvature;
@@ -394,8 +401,9 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
         vDistortionFreq = mix(4.0, 40.0, fNoise.g) * step(0.0001, u.horizontalSyncStrength);
     }
 
-    // 屏幕弧度(1.2 语义:屏幕充满窗口,无 frameSize 内缩;机壳以暗角/阴影叠画在边缘)
-    float2 curved = distortCoordinates(uv, u.screenCurvature, 0.0);
+    // 屏幕弧度。1.2 语义 = 屏幕充满窗口(screenInset=0,缺省);机壳最小带开启时
+    // (2026-08-07)玻璃区上下内缩 screenInset.y,腾出的带子走机壳层
+    float2 curved = distortCoordinates(uv, u.screenCurvature, u.screenInset);
     float isScreen = min2(step(float2(0.0), curved) - step(float2(1.0), curved));
 
     // ── 开机动画(v1.1,YeTerm 原创,crterm 无此特效)──────────────────────
@@ -443,6 +451,12 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
         beamCurved += (dcc / max(dd, 1e-4)) * wave;
     }
     float2 screenCoords = clamp(beamCurved, 0.0, 1.0);
+    // 屏幕内缩 → 窗口坐标(2026-08-07 机壳最小带):内容纹理是**整窗**尺寸,
+    // 光栅/余辉/光标全按窗口坐标工作 —— 用 padding 变换的精确逆映射回去,
+    // inset=0 时逐比特恒等(零弧度时整条链恒等,文字一个像素不动)。
+    // glassCoords 留一份屏幕玻璃归一坐标给背景图(图贴满玻璃,不是贴满窗)。
+    float2 glassCoords = screenCoords;
+    screenCoords = (screenCoords + u.screenInset) / (float2(1.0) + u.screenInset * 2.0);
 
     // 机壳层(dynamic.frag:152-155 + 175-177 的合成语义)
     float4 frameCol = float4(0.0);
@@ -453,6 +467,7 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
     // 水平同步:coords.x 加时变正弦位移(dynamic.frag:141-142)
     float dst = sin((screenCoords.y + u.time) * vDistortionFreq);
     screenCoords.x += dst * vDistortionScale;
+    glassCoords.x += dst * vDistortionScale;   // 背景图同步失步抖(inset=0 时两者相同)
 
     // 雪花噪点(dynamic.frag:144-149;time 固定则输出确定)。
     // 性能短路(数学等价):噪点与抖动全关时 noiseTexel 的贡献恒为 0
@@ -532,7 +547,8 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
     // 而不是贴在玻璃外面的一张纸。后面 isScreen/机壳/开机塌缩也照旧作用于它。
     float3 screenBg = u.backgroundColor.rgb;
     if (u.bgImageOn > 0.5) {
-        float2 bguv = (screenCoords - float2(0.5)) * u.bgImageUVScale + float2(0.5);
+        // glassCoords:图贴满屏幕玻璃(机壳最小带时不含机壳区;inset=0 = 原 screenCoords)
+        float2 bguv = (glassCoords - float2(0.5)) * u.bgImageUVScale + float2(0.5);
         float3 img = bgImageTex.sample(texSampler, clamp(bguv, 0.0, 1.0)).rgb;
         // 荧光染色档(用户可选):整张图按磷光色重染 = "真 CRT 正在显示这张图"。
         // 关 = 保留原色,图只是屏幕底色,磷光文字发光浮在它上面。
@@ -623,7 +639,9 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
             float2 mCurved = float2(
                 curved.x < 0.0 ? -curved.x : (curved.x > 1.0 ? 2.0 - curved.x : curved.x),
                 curved.y < 0.0 ? -curved.y : (curved.y > 1.0 ? 2.0 - curved.y : curved.y));
-            float2 mc = clamp(mCurved, 0.0, 1.0) * u.contentScale - u.contentOffset;
+            // 镜像坐标同样过屏幕内缩的逆映射(inset=0 恒等)—— 反射采的是窗口坐标系的内容
+            float2 mWin = (clamp(mCurved, 0.0, 1.0) + u.screenInset) / (float2(1.0) + u.screenInset * 2.0);
+            float2 mc = mWin * u.contentScale - u.contentOffset;
             float inMC = (mc.x >= 0.0 && mc.y >= 0.0 && mc.x <= 1.0 && mc.y <= 1.0) ? 1.0 : 0.0;
             float3 mtxt = source.sample(texSampler, clamp(mc, 0.0, 1.0)).rgb * inMC;
             float3 mcol = convertWithChroma(mtxt, u);

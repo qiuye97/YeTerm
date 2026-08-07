@@ -205,8 +205,10 @@ public enum SettingsProbe {
         // → size = 252。中间那个是 float2,**要 8 字节对齐**:236 不是 8 的倍数,所以
         // 它排在 240,前后各一个 float 恰好填满、无空洞 —— 这条断言就是防这类排布事故
         // (排错了两侧结构体大小会对不上,GPU 从此读到错位的参数)。
-        check("CRTUniforms 布局 = 252 字节",
-              MemoryLayout<CRTUniforms>.size == 252,
+        // 2026-08-07 机壳最小带再追加 _padScreenInset(252→256 对齐占位)+
+        // screenInset(float2,256→264)→ size = 264(Metal 侧 sizeof 含尾部对齐 = 272)
+        check("CRTUniforms 布局 = 264 字节",
+              MemoryLayout<CRTUniforms>.size == 264,
               detail: "size=\(MemoryLayout<CRTUniforms>.size) stride=\(MemoryLayout<CRTUniforms>.stride)")
         check("背景图字段缺省中性(不铺图 + 不染色)",
               CRTUniforms().bgImageOn == 0 && CRTUniforms().bgImageChroma == 0)

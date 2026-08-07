@@ -88,7 +88,13 @@ struct CRTUniforms {
     var bgImageUVScale: SIMD2<Float> = .init(1, 1)   // 240 → 248
     /// 荧光染色:0 = 保留图片原色(缺省,图当屏幕底图)/ 1 = 整张图过 convertWithChroma
     /// (磷光单色,像真 CRT 在显示这张图)。中间值可插值,目前设置页只给 0/1 两档。
-    var bgImageChroma: Float = 0               // 248 → 252(结构体按 float4 对齐补到 256)
+    var bgImageChroma: Float = 0               // 248 → 252
+    var _padScreenInset: Float = 0             // 252 → 256(下一个 float2 需 8 字节对齐)
+    /// 屏幕内缩(2026-08-07 用户需求「机壳最小带」):屏幕玻璃区从窗口边缘往里缩的量
+    /// (每侧,padding 变换语义;x=左右 y=上下)。缺省 .zero = 屏幕充满窗口(1.2 语义,
+    /// 原行为逐比特不变)。机壳开启时 overlay 每帧按标题栏高度填 y —— 上下腾出
+    /// 等宽机壳带,红绿灯/标题落在带的垂直正中。
+    var screenInset: SIMD2<Float> = .zero      // 256 → 264(结构体按 float4 对齐补到 272)
 }
 
 enum CRTPass {

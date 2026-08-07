@@ -1075,6 +1075,18 @@ final class MetalOverlayView: MTKView {
         // 合成画面已含留白(窗口级内缩),CRT 侧不再平移
         u.contentOffset = .zero
         u.viewportSize = .init(Float(dw), Float(dh))
+        // 机壳最小带(2026-08-07 用户需求):机壳开启时,屏幕玻璃区上下各内缩出
+        // 一条 = 标题栏高度的机壳带 —— 红绿灯/标题落在带的垂直正中(带高=标题栏
+        // 高,系统标题文字在标题栏内天然居中)。上下对称(用户裁决);左右不动。
+        // 全屏无标题栏 → 0;机壳关 → 0(屏幕充满窗口 = 1.2 原语义)。
+        // 换算:屏幕上缘落在窗口 uv=t 处需 inset=t/(1-2t)(padding 变换的解),
+        // t = 标题栏高/窗口高。
+        if u.frameOn > 0.5, let w = window {
+            let t = Float(max(0, bounds.height - w.contentLayoutRect.height) / max(bounds.height, 1))
+            u.screenInset = .init(0, t / max(1 - 2 * t, 0.5))
+        } else {
+            u.screenInset = .zero
+        }
         u.bloomPad = bloomTexture != nil ? (effects?.bloomPadUV ?? .zero) : .zero
         u.powerOnProgress = currentPowerProgress(now: now)   // 开机/关机动画(稳态=1)
 
