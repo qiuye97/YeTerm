@@ -667,10 +667,11 @@ final class MetalOverlayView: MTKView {
 
     /// 设置接线(applyCRTMode 每次广播都会调;路径/模式/强度没变=纯空转)。
     /// path=nil 即清除(成品纹理顺手释放)
-    func setPlainBackground(path: String?, mode: Int, blur: Double, palette: Int) {
+    func setPlainBackground(path: String?, mode: Int, blur: Double, palette: Int,
+                            darken: Double = 0.5) {
         if path != nil && plainBG == nil { plainBG = PlainBackground(ctx: mtl) }
         guard let pb = plainBG else { return }
-        if pb.update(path: path, mode: mode, blur: blur, palette: palette) {
+        if pb.update(path: path, mode: mode, blur: blur, palette: palette, darken: darken) {
             invalidateContentCache()   // 内容纹理清屏透明与否随背景图切换,立即重建
         }
     }

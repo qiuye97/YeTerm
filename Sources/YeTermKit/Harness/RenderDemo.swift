@@ -49,6 +49,7 @@ public struct RenderDemoOptions {
     public var plainBGMode = 0       // --plain-bg-mode 0-4:无/毛玻璃/像素风/暗化/黑白
     public var plainBGBlur = 0.5     // --plain-bg-blur 0~1:毛玻璃模糊强度
     public var plainBGPalette = 0    // --plain-bg-palette 0-3:像素风调色板(PICO-8/DB16/GameBoy/原色)
+    public var plainBGDarken = 0.5   // --plain-bg-darken 0~1:暗化程度(0.5=旧固定观感 ×0.35)
     public var plainBGChroma = false // --plain-bg-chroma:CRT 模式下把背景图荧光染色(v1.5.1)
     public var powerOn: Double?         // 开机动画进度定格(0~1;nil=稳态。v1.1 自测用)
     public var screenInset: Double?     // --screen-inset Y:屏幕垂直内缩(机壳最小带的离屏调试口,2026-08-07)
@@ -184,7 +185,7 @@ public enum RenderDemo {
                 u.contentOffset = .zero
                 let pb = PlainBackground(ctx: mtl)
                 pb.update(path: bgPath, mode: opt.plainBGMode, blur: opt.plainBGBlur,
-                          palette: opt.plainBGPalette)
+                          palette: opt.plainBGPalette, darken: opt.plainBGDarken)
                 if let bgTex = pb.texture {
                     let desc = MTLTextureDescriptor.texture2DDescriptor(
                         pixelFormat: .bgra8Unorm,
@@ -225,7 +226,7 @@ public enum RenderDemo {
             if let bgPath = opt.plainBGPath, u.colorPassthrough <= 0.5 {
                 let pb = PlainBackground(ctx: mtl)
                 pb.update(path: bgPath, mode: opt.plainBGMode, blur: opt.plainBGBlur,
-                          palette: opt.plainBGPalette)
+                          palette: opt.plainBGPalette, darken: opt.plainBGDarken)
                 guard let tex = pb.texture else {
                     err("--plain-bg 图片加载失败: \(bgPath)")
                     return 1

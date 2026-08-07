@@ -202,17 +202,27 @@ public enum SettingsProbe {
         var wpCfg = CRTConfig()
         wpCfg.plainBackgroundImage = "/tmp/probe-壁纸.png"
         wpCfg.plainBackgroundImageMode = 3
+        wpCfg.plainBackgroundDarken = 0.9
         wpCfg.crtBackgroundImageChroma = true
         let wpModel = SettingsModel(from: wpCfg)
         wpModel.persistenceEnabled = false
         let wpLoaded = wpModel.plainBackgroundImagePath == "/tmp/probe-壁纸.png"
             && wpModel.plainBackgroundImageMode == 3 && wpModel.crtBackgroundImageChroma
+            && wpModel.plainBackgroundDarken == 0.9
         wpModel.load(config: Presets.byName("Default Amber")!)
         check("壁纸跟预设走:载入无壁纸预设即清空(不残留上一套)",
               wpLoaded && wpModel.plainBackgroundImagePath.isEmpty
               && wpModel.plainBackgroundImageMode == 0
+              && wpModel.plainBackgroundDarken == 0.5
               && !wpModel.crtBackgroundImageChroma,
               detail: "loaded=\(wpLoaded) path=\(wpModel.plainBackgroundImagePath) mode=\(wpModel.plainBackgroundImageMode)")
+        // 暗化乘数定标:0.5 档必须精确 = 0.35(v1.2 固定观感;auto-drive 有
+        // ×0.35 像素直读断言,分段线性映射的会合点不许漂)
+        check("暗化滑块 0.5 档 = ×0.35(旧观感钉死)",
+              PlainBackground.dimMultiplier(0.5) == Float(0.35)
+              && PlainBackground.dimMultiplier(0) == 1.0
+              && PlainBackground.dimMultiplier(1) == 0.0,
+              detail: "mid=\(PlainBackground.dimMultiplier(0.5))")
 
         // ---- v1.4 三项新配置(「文字发光」)----
         // ① 二进制合同:CRTUniforms 尾部追加四个 float(emissiveModel/bloomStyle/

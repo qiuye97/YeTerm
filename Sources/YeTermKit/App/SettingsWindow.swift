@@ -538,6 +538,11 @@ private struct BackgroundImageCard: View {
                     // 毛玻璃专属:模糊强度(用户追加;松手后按新强度一次性重算缓存)
                     SliderRow(title: L("模糊强度"), value: $model.plainBackgroundBlur)
                 }
+                if model.plainBackgroundImageMode == 3 {
+                    // 暗化专属:程度滑块(0=原图/0.5=旧固定观感 ×0.35/1=全黑;
+                    // 松手后按新程度一次性重算缓存,同毛玻璃的模糊强度)
+                    SliderRow(title: L("暗化程度"), value: $model.plainBackgroundDarken)
+                }
                 if model.plainBackgroundImageMode == 2 {
                     // 像素风专属:复古调色板(v2;像素画社区公开标准调色板)
                     Picker(L("调色板"), selection: $model.plainBackgroundPixelPalette) {

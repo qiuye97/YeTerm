@@ -56,6 +56,16 @@ final class PlainBackground {
     }
     private struct GradeUniforms {
         var mode: Float
+        var dim: Float = 0    // 暗化乘数(仅 mode=1 读;与 MSL PlainBGGradeUniforms 同步)
+    }
+
+    /// 暗化滑块 0~1 → 亮度乘数(2026-08-07 用户需求「暗化程度可调」):
+    /// 0 = 原图(×1)/ 1 = 全黑(×0)。**0.5 档必须精确 = 0.35**(v1.2 起的固定
+    /// 观感,auto-drive 有 ×0.35 像素直读断言)—— 所以用分段线性而非幂曲线,
+    /// 两段在 0.5 处相接,避免浮点幂运算差出 1 LSB
+    static func dimMultiplier(_ t: Double) -> Float {
+        let s = min(max(t, 0), 1)
+        return Float(s <= 0.5 ? 1.0 - 1.3 * s : 0.7 * (1.0 - s))
     }
 
     // 像素风调色板(v2,借鉴 pixelit 等开源像素画工具;色值均为社区公开标准):
@@ -76,19 +86,21 @@ final class PlainBackground {
 
     /// 键控更新:路径/模式/参数没变直接复用缓存(返回 false);变了重新加载+预处理。
     /// path=nil 即清除。设置广播每 50ms 就会打进来,这层挡板是必须的。
-    /// `blur`:毛玻璃强度 0~1;`palette`:像素风调色板档 —— 各自只在对应模式
-    /// 参与缓存键(其它模式动这些值不触发重算)
+    /// `blur`:毛玻璃强度 0~1;`palette`:像素风调色板档;`darken`:暗化程度 0~1 ——
+    /// 各自只在对应模式参与缓存键(其它模式动这些值不触发重算)
     @discardableResult
-    func update(path: String?, mode: Int, blur: Double = 0.5, palette: Int = 0) -> Bool {
+    func update(path: String?, mode: Int, blur: Double = 0.5, palette: Int = 0,
+                darken: Double = 0.5) -> Bool {
         let m = Mode(rawValue: mode) ?? .none
         var suffix = ""
         if m == .frosted { suffix = String(format: "|%.3f", blur) }
         if m == .pixel { suffix = "|p\(palette)" }
+        if m == .dimmed { suffix = String(format: "|d%.3f", darken) }
         let key = path.map { "\($0)|\(mode)\(suffix)" }
         guard key != cacheKey else { return false }
         cacheKey = key
         if let p = path {
-            texture = process(path: p, mode: m, blur: blur, palette: palette)
+            texture = process(path: p, mode: m, blur: blur, palette: palette, darken: darken)
         } else {
             texture = nil
         }
@@ -97,7 +109,8 @@ final class PlainBackground {
 
     // MARK: - 加载 + 预处理
 
-    private func process(path: String, mode: Mode, blur: Double, palette: Int) -> MTLTexture? {
+    private func process(path: String, mode: Mode, blur: Double, palette: Int,
+                         darken: Double) -> MTLTexture? {
         guard let src = loadTexture(path: path) else {
             FileHandle.standardError.write(Data("背景图片加载失败: \(path)\n".utf8))
             return nil
@@ -107,7 +120,7 @@ final class PlainBackground {
             case .none:     return src
             case .frosted:  return try frosted(src, strength: blur)
             case .pixel:    return try pixelated(src, palette: palette)
-            case .dimmed:   return try graded(src, mode: 1)
+            case .dimmed:   return try graded(src, mode: 1, dim: Self.dimMultiplier(darken))
             case .monoFilm: return try graded(src, mode: 2)
             }
         } catch {
@@ -216,9 +229,9 @@ final class PlainBackground {
         }
     }
 
-    /// 暗化(mode=1)/ 黑白胶片(mode=2):单趟调色
-    private func graded(_ src: MTLTexture, mode: Float) throws -> MTLTexture {
-        var u = GradeUniforms(mode: mode)
+    /// 暗化(mode=1,乘数滑块驱动)/ 黑白胶片(mode=2,固定灰度×0.55):单趟调色
+    private func graded(_ src: MTLTexture, mode: Float, dim: Float = 0) throws -> MTLTexture {
+        var u = GradeUniforms(mode: mode, dim: dim)
         return try withUnsafeBytes(of: &u) { p in
             try renderer.renderFullscreen(library: "Passthrough",
                                           fragment: "plain_bg_grade_fragment",

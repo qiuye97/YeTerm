@@ -71,7 +71,9 @@ fragment float4 plain_bg_fill_fragment(FSQuadOut in [[stage_in]],
 }
 
 struct PlainBGGradeUniforms {
-    float mode;     // 1=暗化(×0.35,文字可读性优先)2=黑白胶片(灰度+暗化)
+    float mode;     // 1=暗化(×dim,滑块驱动)2=黑白胶片(灰度×0.55)
+    float dim;      // 暗化乘数(CPU 侧 PlainBackground.dimMultiplier 算好;
+                    // 滑块 0.5 档 = 0.35 = v1.2 起的固定观感,仅 mode=1 读)
 };
 
 // 一次性调色预处理(暗化/黑白胶片)。
@@ -85,7 +87,7 @@ fragment float4 plain_bg_grade_fragment(FSQuadOut in [[stage_in]],
         float g = dot(c, float3(0.299, 0.587, 0.114));
         c = float3(g) * 0.55;
     } else {
-        c *= 0.35;
+        c *= u.dim;
     }
     return float4(c, 1.0);
 }
