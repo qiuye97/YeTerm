@@ -130,6 +130,11 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
         override func mouseDown(with event: NSEvent) {
             let p = contentPoint(event)
+            if ProcessInfo.processInfo.environment["YETERM_DEBUG_HIT"] != nil {
+                let raw = convert(event.locationInWindow, from: nil)
+                FileHandle.standardError.write(Data(
+                    "[hit] raw=\(raw) mapped=\(p) bar=\(String(describing: crtBarRect)) split=\(String(describing: splitHost?.frame)) bounds=\(bounds)\n".utf8))
+            }
             // 盒绘标签条优先(它画在机壳带里,不让位给消磁)
             if let r = crtBarRect, r.contains(p) {
                 onTabBarClick?(p.x - r.minX)

@@ -265,10 +265,19 @@ final class MetalOverlayView: MTKView {
     /// 偏得越明显(用户实测:极简块/翻页卡几乎整条错过)。公式逐行对照
     /// crt_fragment:distortCoordinates(含 screenInset padding)→ clamp →
     /// 内缩逆映射;弧度为 0 且机壳关时恒等。
+    /// 机壳最小带的屏幕内缩(buildUniforms 与命中换算**共用同一公式**;
+    /// ⚠️ 别读 `uniforms.screenInset` —— 那是基线拷贝,每帧值只活在 buildUniforms
+    /// 的局部变量里,2026-08-07 消磁场景假红就是读基线恒 0 踩出来的)
+    private func currentScreenInset() -> SIMD2<Float> {
+        guard uniforms.frameOn > 0.5, let w = window else { return .zero }
+        let t = Float(max(0, bounds.height - w.contentLayoutRect.height) / max(bounds.height, 1))
+        return .init(0, t / max(1 - 2 * t, 0.5))
+    }
+
     func contentPoint(fromViewPoint p: CGPoint) -> CGPoint {
         let W = bounds.width, H = bounds.height
         guard W > 0, H > 0 else { return p }
-        let inset = uniforms.screenInset
+        let inset = currentScreenInset()
         let one = SIMD2<Float>(1, 1)
         // AppKit y-up → 纹理 uv(y-down)
         var uv = SIMD2<Float>(Float(p.x / W), Float(1 - p.y / H))
@@ -278,7 +287,10 @@ final class MetalOverlayView: MTKView {
         var curved = padded + cc * (1 + dist) * dist
         curved = simd_clamp(curved, SIMD2<Float>(), one)
         uv = (curved + inset) / (one + inset * 2)
-        return CGPoint(x: CGFloat(uv.x) * W, y: (1 - CGFloat(uv.y)) * H)
+        // 钳离右/上边界半像素:clamp 到边缘的点若正落 bounds.maxX/maxY,
+        // CGRect.contains 会判 false,机壳/条命中整个漏掉(消磁场景假红的另一半)
+        return CGPoint(x: min(CGFloat(uv.x) * W, W - 0.5),
+                       y: min((1 - CGFloat(uv.y)) * H, H - 0.5))
     }
 
     // ---- 粘贴确认面板(v1.2 #6,v1.3 改 OSD 同款画布合成) ----
@@ -1103,12 +1115,7 @@ final class MetalOverlayView: MTKView {
         // 全屏无标题栏 → 0;机壳关 → 0(屏幕充满窗口 = 1.2 原语义)。
         // 换算:屏幕上缘落在窗口 uv=t 处需 inset=t/(1-2t)(padding 变换的解),
         // t = 标题栏高/窗口高。
-        if u.frameOn > 0.5, let w = window {
-            let t = Float(max(0, bounds.height - w.contentLayoutRect.height) / max(bounds.height, 1))
-            u.screenInset = .init(0, t / max(1 - 2 * t, 0.5))
-        } else {
-            u.screenInset = .zero
-        }
+        u.screenInset = currentScreenInset()   // 与命中换算共用同一公式(frameOn 关 = 0)
         u.bloomPad = bloomTexture != nil ? (effects?.bloomPadUV ?? .zero) : .zero
         u.powerOnProgress = currentPowerProgress(now: now)   // 开机/关机动画(稳态=1)
 
