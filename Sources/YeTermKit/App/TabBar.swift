@@ -226,8 +226,7 @@ private struct GlassTabBarView: View {
                         }
                     }
                 }
-                .padding(.vertical, 3)
-                .padding(.horizontal, 8)   // 端头多留一点:胶囊外轮廓的圆弧别啃到首尾格
+                .padding(3)   // 四边等距(2026-08-07 用户实测:两头间隙要和上下一致)
             }
             newButton
         }
@@ -274,8 +273,11 @@ private struct GlassTabBarView: View {
         .frame(maxWidth: .infinity)
         .frame(height: GlassTabBar.height - 8)
         .background {
+            // 选中 = 重底;未选中悬浮 = 浅底(2026-08-07 用户调校)
             if selected {
-                Capsule().fill(.primary.opacity(0.18))
+                Capsule().fill(.primary.opacity(0.32))
+            } else if hovered == idx {
+                Capsule().fill(.primary.opacity(0.12))
             }
         }
         .contentShape(Rectangle())
