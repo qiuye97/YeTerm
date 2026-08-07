@@ -107,7 +107,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
 
         override func mouseMoved(with event: NSEvent) {
-            let p = convert(event.locationInWindow, from: nil)
+            let p = contentPoint(event)
             if let r = crtBarRect, r.contains(p) {
                 onTabBarHover?(p.x - r.minX)
             } else {
@@ -121,8 +121,15 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             super.mouseExited(with: event)
         }
 
-        override func mouseDown(with event: NSEvent) {
+        /// 命中用坐标:过 CRT 弧度/内缩映射(2026-08-07 修正 —— 标签条画在内容
+        /// 纹理里,屏面点击点必须换算回纹理坐标才能对上;无弧度无机壳时恒等)
+        private func contentPoint(_ event: NSEvent) -> CGPoint {
             let p = convert(event.locationInWindow, from: nil)
+            return (overlayView as? MetalOverlayView)?.contentPoint(fromViewPoint: p) ?? p
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            let p = contentPoint(event)
             // 盒绘标签条优先(它画在机壳带里,不让位给消磁)
             if let r = crtBarRect, r.contains(p) {
                 onTabBarClick?(p.x - r.minX)
@@ -365,6 +372,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     var terminalViewForTesting: EventTerminalView? { focusedPane?.terminalView }
     var overlayForTesting: MetalOverlayView? { overlay }
     var crtTabBarVisibleForTesting: Bool { root.crtBarRect != nil && overlay?.tabStrip != nil }
+    var crtTabBarRectForTesting: CGRect? { root.crtBarRect }
     var glassTabBarVisibleForTesting: Bool { glassBarHost?.isHidden == false }
     /// 几何取证(2026-08-07 重影排查)
     var tabBarGeometryForTesting: String {

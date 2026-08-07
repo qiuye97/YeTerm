@@ -38,12 +38,13 @@ final class TabStripController {
         let hasActivity: Bool
     }
 
-    /// 样式(2026-08-07 用户裁决五款;`crtTabBarStyle` 预设携带,缺省 0):
-    /// 0 圆角框(3 行)/1 极简块(1 行)/2 胶囊块(1 行)/3 下划线(2 行)/4 翻页卡(2 行)
+    /// 样式(2026-08-07 用户裁决;`crtTabBarStyle` 预设携带,缺省 0):
+    /// 0 直角框(3 行)/1 圆角框(3 行)/2 极简块(1 行)/3 胶囊块(1 行)/
+    /// 4 下划线(2 行)/5 翻页卡(2 行)
     static func rows(for style: Int) -> Int {
         switch style {
-        case 1, 2: return 1
-        case 3, 4: return 2
+        case 2, 3: return 1
+        case 4, 5: return 2
         default:   return 3
         }
     }
@@ -148,19 +149,20 @@ final class TabStripController {
         guard n > 0, cols >= n * 7 else { return [String(repeating: " ", count: cols)] }
 
         switch style {
-        case 1:  return composeMinimal(tabs, selected, hovered, n)
-        case 2:  return composeCapsule(tabs, selected, hovered, n)
-        case 3:  return composeUnderline(tabs, selected, hovered, n)
-        case 4:  return composeFolder(tabs, selected, hovered, n)
-        default: return composeRounded(tabs, selected, hovered, n)
+        case 2:  return composeMinimal(tabs, selected, hovered, n)
+        case 3:  return composeCapsule(tabs, selected, hovered, n)
+        case 4:  return composeUnderline(tabs, selected, hovered, n)
+        case 5:  return composeFolder(tabs, selected, hovered, n)
+        default: return composeBox(tabs, selected, hovered, n, rounded: style == 1)
         }
     }
 
-    /// 样式 0「圆角框」:3 行,╭┬╮ 框住等宽格
-    private func composeRounded(_ tabs: [TabInfo], _ selected: Int,
-                                _ hovered: Int?, _ n: Int) -> [String] {
+    /// 样式 0「直角框」/ 1「圆角框」:3 行,盒绘框住等宽格(只差四个角字符)
+    private func composeBox(_ tabs: [TabInfo], _ selected: Int,
+                            _ hovered: Int?, _ n: Int, rounded: Bool) -> [String] {
+        let (tl, tr, bl, br) = rounded ? ("╭", "╮", "╰", "╯") : ("┌", "┐", "└", "┘")
         let widths = Self.split(cols - (n + 1), n)
-        var r1 = "╭", r2 = "│", r3 = "╰"
+        var r1 = tl, r2 = "│", r3 = bl
         var cursor = 1
         for (i, tab) in tabs.enumerated() {
             let w = widths[i]
@@ -171,9 +173,9 @@ final class TabStripController {
             ranges.append(cursor..<(cursor + w))
             cursor += w + 1
             let last = (i == n - 1)
-            r1 += last ? "╮" : "┬"
+            r1 += last ? tr : "┬"
             r2 += "│"
-            r3 += last ? "╯" : "┴"
+            r3 += last ? br : "┴"
         }
         return [r1, r2, r3]
     }

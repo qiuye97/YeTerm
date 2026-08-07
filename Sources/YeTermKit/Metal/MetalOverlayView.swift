@@ -259,6 +259,28 @@ final class MetalOverlayView: MTKView {
         effects?.resetBurnIn()
     }
 
+    /// 屏面点(AppKit y-up 视图坐标)→ 内容纹理坐标(2026-08-07 命中修正)。
+    /// 屏幕弧度 + 机壳最小带都会把顶部内容"顶"离它在纹理里的位置 —— 标签条
+    /// 画在纹理里,点击命中必须先过与 CRT shader **同一套**映射,否则条越矮
+    /// 偏得越明显(用户实测:极简块/翻页卡几乎整条错过)。公式逐行对照
+    /// crt_fragment:distortCoordinates(含 screenInset padding)→ clamp →
+    /// 内缩逆映射;弧度为 0 且机壳关时恒等。
+    func contentPoint(fromViewPoint p: CGPoint) -> CGPoint {
+        let W = bounds.width, H = bounds.height
+        guard W > 0, H > 0 else { return p }
+        let inset = uniforms.screenInset
+        let one = SIMD2<Float>(1, 1)
+        // AppKit y-up → 纹理 uv(y-down)
+        var uv = SIMD2<Float>(Float(p.x / W), Float(1 - p.y / H))
+        let padded = uv * (one + inset * 2) - inset
+        let cc = padded - SIMD2<Float>(0.5, 0.5)
+        let dist = (cc.x * cc.x + cc.y * cc.y) * uniforms.screenCurvature
+        var curved = padded + cc * (1 + dist) * dist
+        curved = simd_clamp(curved, SIMD2<Float>(), one)
+        uv = (curved + inset) / (one + inset * 2)
+        return CGPoint(x: CGFloat(uv.x) * W, y: (1 - CGFloat(uv.y)) * H)
+    }
+
     // ---- 粘贴确认面板(v1.2 #6,v1.3 改 OSD 同款画布合成) ----
     private(set) var pasteGuardController: PasteGuardController?
 

@@ -1071,11 +1071,12 @@ private struct ScreenPage: View {
             HStack {
                 Text(L("标签栏样式")).frame(width: 92, alignment: .leading)
                 Picker("", selection: $model.crtTabBarStyle) {
-                    Text(L("圆角框")).tag(0)
-                    Text(L("极简块")).tag(1)
-                    Text(L("胶囊块")).tag(2)
-                    Text(L("下划线")).tag(3)
-                    Text(L("翻页卡")).tag(4)
+                    Text(L("直角框")).tag(0)
+                    Text(L("圆角框")).tag(1)
+                    Text(L("极简块")).tag(2)
+                    Text(L("胶囊块")).tag(3)
+                    Text(L("下划线")).tag(4)
+                    Text(L("翻页卡")).tag(5)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()

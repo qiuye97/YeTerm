@@ -58,7 +58,7 @@ final class SettingsModel: ObservableObject {
     @Published var rgbShift: Double = 0
     @Published var ambientLight: Double = 0.3
     @Published var frameEnabled: Bool = true   // 机壳边框(暗角/边缘阴影/反射带)总开关
-    @Published var crtTabBarStyle: Int = 0     // 盒绘标签条样式(0 圆角框/1 极简块/2 胶囊块/3 下划线/4 翻页卡)
+    @Published var crtTabBarStyle: Int = 0     // 盒绘标签条样式(0 直角框/1 圆角框/2 极简块/3 胶囊块/4 下划线/5 翻页卡)
     @Published var margin: Double = 0.5
     @Published var windowOpacity: Double = 1
     @Published var dividerStyle: Int = 0   // 分屏荧光线:0 实线/1 虚线段/2 点线
@@ -160,7 +160,7 @@ final class SettingsModel: ObservableObject {
         // 从经典配色切回经典 CRT 时上一套的 false 会残留,机壳被莫名关掉。
         // (同 bitRate/ansiColorsHex 的"跟着预设走"处理,理由见下面 bitRate 那条注释)
         frameEnabled = c.frameEnabled ?? true
-        // 标签条样式同为预设携带字段(bitRate 同款语义):切到没配的预设回缺省圆角框
+        // 标签条样式同为预设携带字段(bitRate 同款语义):切到没配的预设回缺省直角框
         crtTabBarStyle = c.crtTabBarStyle ?? 0
         margin = c.margin ?? margin
         windowOpacity = c.windowOpacity ?? windowOpacity

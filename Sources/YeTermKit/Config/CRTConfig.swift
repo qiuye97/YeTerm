@@ -61,7 +61,7 @@ public struct CRTConfig: Codable {
     // 机壳细项(YeTerm 扩展字段;crterm 原版机壳参数写死,导入其 JSON 时缺省走 master 默认值)
     public var frameEnabled: Bool?        // 机壳层总开关(v1.2.1 用户追加:关=暗角/边缘阴影/反射带全消;缺省开)
     public var crtTabBarStyle: Int?       // 盒绘标签条样式(2026-08-07 用户需求,跟着预设走):
-                                          // 0 圆角框(缺省)/1 极简块/2 胶囊块/3 下划线/4 翻页卡
+                                          // 0 直角框(缺省)/1 圆角框/2 极简块/3 胶囊块/4 下划线/5 翻页卡
     public var frameColor: String?        // #RRGGBB,默认 #ffffff
     public var screenRadius: Double?      // 0~1,圆角半径 lint(4,120,·),默认 0.2
     public var frameShininess: Double?    // 0~1,反光强度,默认 0.2

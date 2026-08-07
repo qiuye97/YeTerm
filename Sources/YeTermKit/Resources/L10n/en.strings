@@ -222,6 +222,7 @@
 "四角暗角、屏内边缘阴影与机壳反射" = "Corner vignetting, inner edge shadow and case reflections";
 "屏幕弧度开启时机壳自动开启(弧形四角需要机壳包边)" = "Enabled automatically while screen curvature is on (the curved corners need the bezel around them)";
 "标签栏样式" = "Tab Bar Style";
+"直角框" = "Square";
 "圆角框" = "Rounded";
 "极简块" = "Minimal";
 "胶囊块" = "Capsules";

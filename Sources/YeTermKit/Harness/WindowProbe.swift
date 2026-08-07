@@ -95,8 +95,8 @@ public enum WindowProbe {
         pump(0.5)
         check("CRT 恢复后回盒绘条", tabbedWC?.crtTabBarVisibleForTesting == true)
 
-        // 五款盒绘条样式(2026-08-07):逐一切换渲染出帧(目检)+ 断言在场
-        for s in 0...4 {
+        // 六款盒绘条样式(2026-08-07):逐一切换渲染出帧(目检)+ 断言在场
+        for s in 0...5 {
             delegate.settingsModel.crtTabBarStyle = s
             pump(0.4)
             check("盒绘条样式 \(s) 在场", tabbedWC?.crtTabBarVisibleForTesting == true)
@@ -106,6 +106,24 @@ public enum WindowProbe {
         }
         delegate.settingsModel.crtTabBarStyle = 0
         pump(0.3)
+
+        // 命中修正(2026-08-07 用户实测:弧度把顶部内容"下顶",极简块/翻页卡这类
+        // 矮条几乎整条点不中):点击点须过与 shader 同一套弧度/内缩映射。
+        // 断言:弧度全开时,条正下方一点经映射后**向上**进入条的纹理区间;
+        // 关掉弧度(机壳仍开→仍有最小带内缩)时映射不应产生弧度那么大的位移
+        delegate.settingsModel.curvature = 1.0
+        pump(0.5)
+        if let ov = tabbedWC?.overlayForTesting, let r = tabbedWC?.crtTabBarRectForTesting {
+            let below = CGPoint(x: r.midX, y: r.minY - 6)
+            let mapped = ov.contentPoint(fromViewPoint: below)
+            check("弧度下条命中映射向上修正进区间", mapped.y > below.y && r.contains(mapped),
+                  detail: String(format: "below.y=%.1f mapped.y=%.1f rect=%.1f..%.1f",
+                                 below.y, mapped.y, r.minY, r.maxY))
+        } else {
+            check("命中映射测试前置(overlay/条命中区在场)", false)
+        }
+        delegate.settingsModel.curvature = 0
+        pump(0.4)
 
         // ── 回归(2026-08-07 用户实测三连 bug):切标签重影 / 输入不可见 / 焦点 ──
         // tab2 活动期间给 tab1 的 shell 灌输出(后台标签内容照样变),再切回:
