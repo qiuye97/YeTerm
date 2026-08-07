@@ -216,6 +216,14 @@ public enum YeTermCLI {
             default: options.cursorStyle = 0
             }
         }
+        // 首窗工作目录(2026-08-07:右键工具的参数式集成口;目录不存在静默忽略,
+        // 给的是文件则用其所在目录 —— 与「打开文档」事件同语义)
+        if let d = value(after: "--cwd", in: args) {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: d, isDirectory: &isDir) {
+                options.initialCwd = isDir.boolValue ? d : (d as NSString).deletingLastPathComponent
+            }
+        }
         return AppRunner.runGUI(options: options)
     }
 

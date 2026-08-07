@@ -47,6 +47,7 @@ public struct LaunchOptions {
     public var fontSize: CGFloat = 14
     public var config: CRTConfig?          // --config <crterm.json>(兼容 cool-retro-term 导出)
     public var cursorStyle: Float = 0      // 0 块/1 下划线/2 竖线(--cursor-style;M3 进设置页)
+    public var initialCwd: String?         // --cwd <目录>:首窗工作目录(右键工具的参数式集成口)
     public init() {}
 }
 
@@ -164,15 +165,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return wc
     }
 
-    func makeWindow(restore: SessionState.WindowState? = nil) -> TerminalWindowController {
+    func makeWindow(restore: SessionState.WindowState? = nil,
+                    explicitCwd: String? = nil) -> TerminalWindowController {
         // 开机自检(v1.2 #10):仅 app 启动的第一个窗口播(后续新窗只播显像管动画,
         // 不打断工作流);设置可关
         let playBoot = windowControllers.isEmpty && settingsModel.bootSelfTest
             && settingsModel.crtEffectsEnabled   // 总开关关=普通终端观感,自检也免
         // ⌘N/⌘T 继承目录(v1.2 #8):从当前 key 窗的聚焦 shell 查 cwd 注入新窗
-        // (会话恢复窗自带目录,不掺和)
-        var inheritedCwd: String?
-        if restore == nil, settingsModel.inheritCwd,
+        // (会话恢复窗自带目录,不掺和;explicitCwd = 访达「打开文件夹」/--cwd,
+        // 意图明确,优先级最高)
+        var inheritedCwd: String? = explicitCwd
+        if inheritedCwd == nil, restore == nil, settingsModel.inheritCwd,
            let keyWC = NSApp.keyWindow?.windowController as? TerminalWindowController
                ?? windowControllers.first(where: { $0.window?.isKeyWindow == true }) {
             inheritedCwd = keyWC.currentWorkingDirectory
@@ -379,6 +382,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsController?.show()
     }
 
+    // MARK: - 「打开文件夹」(2026-08-07 用户需求:超级右键/访达右键进入目录)
+
+    /// 启动型打开攒在这(odoc 事件可能先于 didFinishLaunching 到),启动完再建窗
+    private var pendingOpenDirs: [String] = []
+    private var launchFinished = false
+
+    /// 系统「打开文档」事件 —— 超级右键这类工具对自定义 app 做的事等价于
+    /// `open -a YeTerm <目录>`:**不是命令行参数**,是 LaunchServices 投递的
+    /// Apple Event(拖文件夹到 Dock 图标/访达「打开方式」同一条路)。
+    /// Terminal.app/VS Code 能"右键进目录"就是接了这个。
+    /// 目录 → 当新窗工作目录;给的是文件 → 用其所在目录(Terminal.app 同语义)。
+    func application(_ application: NSApplication, open urls: [URL]) {
+        var dirs: [String] = []
+        for url in urls where url.isFileURL {
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { continue }
+            dirs.append(isDir.boolValue ? url.path : url.deletingLastPathComponent().path)
+        }
+        guard !dirs.isEmpty else { return }
+        if launchFinished {
+            for d in dirs { makeWindow(explicitCwd: d).showWindow(nil) }
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            pendingOpenDirs.append(contentsOf: dirs)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         FontLibrary.registerBundledFonts()   // 内置 13 款复古字体(进程级,无需安装)
         // 2026-08-06:标签改窗口内自管(样式可定制),系统级窗口并标签整个关掉
@@ -414,9 +444,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 DispatchQueue.main.async { wc.applyRestoredRatios() }
             }
         }
+        // 「打开文件夹」启动(超级右键/拖 Dock/--cwd):文件夹窗**代替**默认首窗
+        // (有会话恢复则叠加其后,最后 show 的是文件夹窗 = key,Terminal.app 同语义)
+        if let d = options.initialCwd { pendingOpenDirs.append(d) }
+        for d in pendingOpenDirs { makeWindow(explicitCwd: d).showWindow(nil) }
+        pendingOpenDirs = []
         if windowControllers.isEmpty {
             makeWindow().showWindow(nil)
         }
+        launchFinished = true
         // 只激活一次。曾经的"异步二次 activate(ignoringOtherApps:)"已移除:
         // beta 协作式激活下反复抢激活有夺焦嫌疑(M0 IME 事故排查时排雷)。
         NSApp.activate(ignoringOtherApps: true)

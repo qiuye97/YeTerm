@@ -99,6 +99,24 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
         <string>_sftp-ssh._tcp</string>
         <string>_http._tcp</string>
     </array>
+    <!-- 「能打开文件夹」声明(2026-08-07 用户需求:超级右键/访达右键进入目录)。
+         超级右键这类工具对自定义 app 做的是 `open -a YeTerm <目录>`,系统走
+         LaunchServices「打开文档」事件投递;声明 public.folder 后 Finder 的
+         「打开方式」/拖文件夹到 Dock 图标也一并可用。接收端在
+         AppDelegate.application(_:open:) —— 目录进新窗当工作目录。
+         Rank=Alternate:能打开,但绝不抢当文件夹的默认打开程序(那是 Finder)。 -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>Folder</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.folder</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
 PLIST
