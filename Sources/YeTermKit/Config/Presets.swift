@@ -393,14 +393,17 @@ public enum Presets {
         // VaporWave(2026-08-07 用户点名新增,Plasma 的姊妹篇):Plasma 是
         // Synthwave(高饱和霓虹、午夜飙车),这套是 Vaporwave(褪色粉彩、午后
         // 商场)。五色盘用社区公认的蒸汽波调色板原色:粉 #ff71ce / 青 #01cdfe /
-        // 薄荷 #05ffa1 / 淡紫 #b967ff / 奶黄 #fffb96,底色褪色靛紫;默认文字取
-        // 粉彩青(与 Plasma 的粉字反极,姊妹不撞脸);saturation 0.9 故意把默认
-        // 文字往白洗 —— "褪色感"正是蒸汽波与霓虹的分水岭。配方舟像素:全角
-        // 像素中文字正是蒸汽波美学的标志元素(ＡＥＳＴＨＥＴＩＣ)。
-        make(name: "VaporWave", bg: "#1e1442", fg: "#7ae7ff",
+        // 薄荷 #05ffa1 / 淡紫 #b967ff / 奶黄 #fffb96。默认文字 = 正典粉
+        // #ff71ce(用户裁决 2026-08-07:第一版取了粉彩青,整体观感成了"冰蓝",
+        // 蒸汽波的门面必须是粉的;第二版 saturation 0.9 又把粉洗到接近白,
+        // 收回到 0.3 —— 白热化本来就会把笔画芯推白,预混层再洗就没粉了,
+        // "褪色感"交给紫底、辉光与粉彩 ANSI 承担)。与 Plasma 的区分靠底色
+        // (褪色紫红靛 vs 近黑)与字体:方舟像素的全角像素中文字正是蒸汽波
+        // 美学的标志元素(ＡＥＳＴＨＥＴＩＣ)。
+        make(name: "VaporWave", bg: "#251343", fg: "#ff71ce",
              ambient: 0.1, bloom: 0.7, brightness: 0.6, burnIn: 0.1, chroma: 1, contrast: 0.85,
              flickering: 0.1, glowing: 0.2, hsync: 0, jitter: 0.08, raster: 4, rgbShift: 0.1,
-             saturation: 0.9, curvature: 0, noise: 0.1, opacity: 1, margin: 0.1, frameSize: 0,
+             saturation: 0.3, curvature: 0, noise: 0.1, opacity: 1, margin: 0.1, frameSize: 0,
              font: "Ark Pixel 12px Mono zh_cn",
              ansi: ["#2b2158", "#ff5c8a", "#05ffa1", "#ffe08a",
                     "#6e8bff", "#b967ff", "#01cdfe", "#e8def5",
