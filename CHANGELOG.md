@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.1] — 2026-08-07
+
+### Fixed
+
+- **Opening a folder from Finder no longer also restores the previous
+  session.** Right-clicking a folder into YeTerm (or dragging one onto the
+  Dock icon) used to open the folder window *plus* whatever the last session
+  had — the restored window read as "a second window that ignored my folder".
+  A launch whose reason is "open a document" now shows only the folder window;
+  the session archive is untouched and a normal launch still restores it.
+  Also covers launchers that start the app first and deliver the folder a beat
+  later — that gap used to produce a stray default window.
+
 ## [1.3.0] — 2026-08-07
 
 ### Added

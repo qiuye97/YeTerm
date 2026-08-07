@@ -435,8 +435,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             FileHandle.standardError.write(Data(
                 "提示:检测到另一个 YeTerm 实例(PID \(peers.map { String($0.processIdentifier) }.joined(separator: ", "))),多实例共写配置可能互相覆盖\n".utf8))
         }
-        // 会话恢复(v1.2 #2):有存档且开关开 → 照存档还原窗口/分屏/工作目录
-        if settingsModel.restoreSession, let session = SessionStore.load() {
+        // 「打开文件夹」启动(超级右键/拖 Dock/--cwd)先归拢;odoc 事件通常
+        // 先于本回调送达(application(_:open:) 已把目录攒进 pendingOpenDirs)
+        if let d = options.initialCwd { pendingOpenDirs.append(d) }
+        // 启动原因是「打开文档」吗:有的启动器先拉起 app、再补发文档事件,
+        // 此刻 pendingOpenDirs 可能还空着 —— 再看启动 Apple Event 的事件类型
+        // ('odoc' = open documents;正常启动是 'oapp')兜住这半拍的时间差
+        let odoc = AEEventID(0x6F64_6F63)   // 'odoc'
+        let launchedToOpen = !pendingOpenDirs.isEmpty
+            || NSAppleEventManager.shared().currentAppleEvent?.eventID == odoc
+        // 会话恢复(v1.2 #2):有存档且开关开 → 照存档还原窗口/分屏/工作目录。
+        // 「打开文件夹」启动一律**跳过**(2026-08-07 用户实测:右键进目录时
+        // 上次会话也铺开,恢复窗成了"没进目录的多余窗口"—— 右键的意图就是
+        // "给我这个目录一扇窗",其余都是干扰)。存档本身不动,下次正常启动
+        // 照常恢复;退出时照旧覆盖存档(最后状态语义,与既有行为一致)。
+        if settingsModel.restoreSession, !launchedToOpen, let session = SessionStore.load() {
             for ws in session.windows {
                 let wc = makeWindow(restore: ws)
                 wc.showWindow(nil)
@@ -444,13 +457,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 DispatchQueue.main.async { wc.applyRestoredRatios() }
             }
         }
-        // 「打开文件夹」启动(超级右键/拖 Dock/--cwd):文件夹窗**代替**默认首窗
-        // (有会话恢复则叠加其后,最后 show 的是文件夹窗 = key,Terminal.app 同语义)
-        if let d = options.initialCwd { pendingOpenDirs.append(d) }
         for d in pendingOpenDirs { makeWindow(explicitCwd: d).showWindow(nil) }
         pendingOpenDirs = []
         if windowControllers.isEmpty {
-            makeWindow().showWindow(nil)
+            if launchedToOpen {
+                // odoc 启动但目录还没送到:等 application(_:open:) 来建窗;
+                // 2 秒兜底 —— 万一事件永远不来,也不能一扇窗都没有
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                    guard let self, self.windowControllers.isEmpty else { return }
+                    self.makeWindow().showWindow(nil)
+                }
+            } else {
+                makeWindow().showWindow(nil)
+            }
         }
         launchFinished = true
         // 只激活一次。曾经的"异步二次 activate(ignoringOtherApps:)"已移除:
