@@ -38,13 +38,22 @@ final class TabStripController {
         let hasActivity: Bool
     }
 
-    static let rows = 3   // 上框线 / 内容行 / 下框线
+    /// 样式(2026-08-07 用户裁决五款;`crtTabBarStyle` 预设携带,缺省 0):
+    /// 0 圆角框(3 行)/1 极简块(1 行)/2 胶囊块(1 行)/3 下划线(2 行)/4 翻页卡(2 行)
+    static func rows(for style: Int) -> Int {
+        switch style {
+        case 1, 2: return 1
+        case 3, 4: return 2
+        default:   return 3
+        }
+    }
 
     private let ctx: MetalContext
     private let content: ContentRenderer
     private let termDelegate = HarnessTermDelegate()
     private var terminal: Terminal
     private var cols: Int
+    private(set) var rows = 3
     /// 每个标签占据的显示列区间(命中用;与 feed 的字符逐列对齐)
     private var ranges: [Range<Int>] = []
     /// 悬浮格的 x 按钮命中列(略放宽到 3 列,好点)
@@ -55,19 +64,21 @@ final class TabStripController {
         self.content = ContentRenderer(ctx: ctx)
         self.cols = 80
         self.terminal = Terminal(delegate: termDelegate,
-                                 options: TerminalOptions(cols: 80, rows: Self.rows))
+                                 options: TerminalOptions(cols: 80, rows: rows))
     }
 
-    /// 全量重排 + 重 feed(3×cols 小画布,整幅重画零成本)
-    func update(tabs: [TabInfo], selected: Int, hovered: Int?, cols newCols: Int) {
+    /// 全量重排 + 重 feed(≤3×cols 小画布,整幅重画零成本)
+    func update(tabs: [TabInfo], selected: Int, hovered: Int?, cols newCols: Int, style: Int) {
         let c = max(20, newCols)
-        if c != cols {
+        let r = Self.rows(for: style)
+        if c != cols || r != rows {
             cols = c
+            rows = r
             terminal = Terminal(delegate: termDelegate,
-                                options: TerminalOptions(cols: c, rows: Self.rows))
+                                options: TerminalOptions(cols: c, rows: r))
         }
-        let (r1, r2, r3) = compose(tabs: tabs, selected: selected, hovered: hovered)
-        terminal.feed(text: "\u{1b}[2J\u{1b}[H" + r1 + "\r\n" + r2 + "\r\n" + r3)
+        let lines = compose(tabs: tabs, selected: selected, hovered: hovered, style: style)
+        terminal.feed(text: "\u{1b}[2J\u{1b}[H" + lines.joined(separator: "\r\n"))
     }
 
     func render(font: NSFont, scale: CGFloat) -> MTLTexture? {
@@ -90,59 +101,183 @@ final class TabStripController {
 
     // ---- 排版 ----
 
-    /// 生成三行字符画并记录命中区间。格宽 = (cols - (n+1) 根竖线) / n,
-    /// 余数从左往右一格一列摊掉;CJK 标题按显示宽 2 计列。
-    private func compose(tabs: [TabInfo], selected: Int,
-                         hovered: Int?) -> (String, String, String) {
+    /// 居中排一格内容:两侧各留 3 列(x 区 + 呼吸),悬浮时第 2 列浮出 x。
+    /// 返回未上色的 body(恰好 w 列);顺手记录 x 命中列(cellStart = 格首列)。
+    private func cellBody(_ tab: TabInfo, index: Int, width w: Int,
+                          hovered: Int?, cellStart: Int) -> String {
+        let label = Self.truncate("\(index + 1) " + (tab.hasActivity ? "· " : "") + tab.title,
+                                  to: max(1, w - 6))
+        let lw = Self.displayWidth(label)
+        let padL = max(0, (w - lw) / 2)
+        let padR = max(0, w - lw - padL)
+        var body = String(repeating: " ", count: padL) + label
+                 + String(repeating: " ", count: padR)
+        if hovered == index, w >= 4 {
+            var chars = Array(body)
+            chars[1] = "x"          // padL ≥ 3 ⇒ 前三个必是空格,替换安全
+            body = String(chars)
+            closeRange = cellStart..<(cellStart + 3)
+        }
+        return body
+    }
+
+    /// 上色:选中 = 整格反显(染色后磷光亮底暗字 = 深色档);
+    /// 悬浮 = 暗灰真彩底(染色后弱磷光 = 浅色档);普通 = 原样
+    private func paint(_ body: String, index: Int, selected: Int, hovered: Int?) -> String {
+        if index == selected {
+            return "\u{1b}[7m" + body + "\u{1b}[27m"
+        }
+        if index == hovered {
+            return "\u{1b}[48;2;84;84;84m" + body + "\u{1b}[49m"
+        }
+        return body
+    }
+
+    /// 等宽切分:总列 inner 分 n 份,余数从左往右一格一列摊掉
+    private static func split(_ inner: Int, _ n: Int) -> [Int] {
+        let base = inner / n, extra = inner % n
+        return (0..<n).map { base + ($0 < extra ? 1 : 0) }
+    }
+
+    /// 生成整条字符画并记录命中区间(行数随样式;CJK 标题按显示宽 2 计列)
+    private func compose(tabs: [TabInfo], selected: Int, hovered: Int?,
+                         style: Int) -> [String] {
         ranges = []
         closeRange = nil
         let n = tabs.count
-        guard n > 0, cols >= n * 5 + n + 1 else { return ("", "", "") }
+        guard n > 0, cols >= n * 7 else { return [String(repeating: " ", count: cols)] }
 
-        let inner = cols - (n + 1)
-        let base = inner / n, extra = inner % n
-        let widths = (0..<n).map { base + ($0 < extra ? 1 : 0) }
+        switch style {
+        case 1:  return composeMinimal(tabs, selected, hovered, n)
+        case 2:  return composeCapsule(tabs, selected, hovered, n)
+        case 3:  return composeUnderline(tabs, selected, hovered, n)
+        case 4:  return composeFolder(tabs, selected, hovered, n)
+        default: return composeRounded(tabs, selected, hovered, n)
+        }
+    }
 
-        var r1 = "┌", r2 = "│", r3 = "└"
+    /// 样式 0「圆角框」:3 行,╭┬╮ 框住等宽格
+    private func composeRounded(_ tabs: [TabInfo], _ selected: Int,
+                                _ hovered: Int?, _ n: Int) -> [String] {
+        let widths = Self.split(cols - (n + 1), n)
+        var r1 = "╭", r2 = "│", r3 = "╰"
         var cursor = 1
         for (i, tab) in tabs.enumerated() {
             let w = widths[i]
             r1 += String(repeating: "─", count: w)
             r3 += String(repeating: "─", count: w)
-
-            // 标题:「N 标题」+ 活动点「·」;两侧各留 3 列(x 区 + 呼吸),居中
-            let label = Self.truncate("\(i + 1) " + (tab.hasActivity ? "· " : "") + tab.title,
-                                      to: max(1, w - 6))
-            let lw = Self.displayWidth(label)
-            let padL = max(0, (w - lw) / 2)
-            let padR = max(0, w - lw - padL)
-            var body = String(repeating: " ", count: padL) + label
-                     + String(repeating: " ", count: padR)
-            // 悬浮格左侧浮出 x(玻璃条同款交互;字符画布无真悬浮态,由控制器
-            // 用鼠标追踪喂进来)。x 恒在第 2 列,标题居中不因它挪动
-            if hovered == i, w >= 4 {
-                var chars = Array(body)
-                chars[1] = "x"
-                body = String(chars)
-                closeRange = cursor..<(cursor + 3)
-            }
-            if i == selected {
-                // 深色档:整格反显(SGR 7)→ CRT 染色后 = 磷光亮底 + 暗字
-                r2 += "\u{1b}[7m" + body + "\u{1b}[27m"
-            } else if hovered == i {
-                // 浅色档:暗灰底(真彩 SGR 48;2)→ 染色后 = 弱磷光底
-                r2 += "\u{1b}[48;2;84;84;84m" + body + "\u{1b}[49m"
-            } else {
-                r2 += body
-            }
+            let body = cellBody(tab, index: i, width: w, hovered: hovered, cellStart: cursor)
+            r2 += paint(body, index: i, selected: selected, hovered: hovered)
             ranges.append(cursor..<(cursor + w))
             cursor += w + 1
             let last = (i == n - 1)
-            r1 += last ? "┐" : "┬"
+            r1 += last ? "╮" : "┬"
             r2 += "│"
-            r3 += last ? "┘" : "┴"
+            r3 += last ? "╯" : "┴"
         }
-        return (r1, r2, r3)
+        return [r1, r2, r3]
+    }
+
+    /// 样式 1「极简块」:1 行,tmux 状态栏风,格间一根竖线
+    private func composeMinimal(_ tabs: [TabInfo], _ selected: Int,
+                                _ hovered: Int?, _ n: Int) -> [String] {
+        let widths = Self.split(cols - (n - 1), n)
+        var r = ""
+        var cursor = 0
+        for (i, tab) in tabs.enumerated() {
+            let w = widths[i]
+            let body = cellBody(tab, index: i, width: w, hovered: hovered, cellStart: cursor)
+            r += paint(body, index: i, selected: selected, hovered: hovered)
+            ranges.append(cursor..<(cursor + w))
+            cursor += w
+            if i < n - 1 {
+                r += "│"
+                cursor += 1
+            }
+        }
+        return [r]
+    }
+
+    /// 样式 2「胶囊块」:1 行,▐body▌ 半块圆帽的悬浮药丸(玻璃条的字符对应物),
+    /// 药丸之间留 2 列空
+    private func composeCapsule(_ tabs: [TabInfo], _ selected: Int,
+                                _ hovered: Int?, _ n: Int) -> [String] {
+        // 每丸帽 2 列,丸间空 2 列,首尾各 1 列边距
+        let widths = Self.split(cols - 2 - 2 * n - 2 * (n - 1), n)
+        var r = " "
+        var cursor = 1
+        for (i, tab) in tabs.enumerated() {
+            let w = widths[i]
+            let bodyStart = cursor + 1
+            let body = cellBody(tab, index: i, width: w, hovered: hovered, cellStart: bodyStart)
+            r += "▐" + paint(body, index: i, selected: selected, hovered: hovered) + "▌"
+            ranges.append(cursor..<(cursor + w + 2))   // 命中含两侧帽
+            cursor += w + 2
+            if i < n - 1 {
+                r += "  "
+                cursor += 2
+            }
+        }
+        return [r]
+    }
+
+    /// 样式 3「下划线」:2 行,浏览器标签风 —— 选中格反显 + 粗亮下划线
+    private func composeUnderline(_ tabs: [TabInfo], _ selected: Int,
+                                  _ hovered: Int?, _ n: Int) -> [String] {
+        let widths = Self.split(cols - (n - 1), n)
+        var r1 = "", r2 = ""
+        var cursor = 0
+        for (i, tab) in tabs.enumerated() {
+            let w = widths[i]
+            let body = cellBody(tab, index: i, width: w, hovered: hovered, cellStart: cursor)
+            r1 += paint(body, index: i, selected: selected, hovered: hovered)
+            r2 += String(repeating: i == selected ? "━" : " ", count: w)
+            ranges.append(cursor..<(cursor + w))
+            cursor += w
+            if i < n - 1 {
+                r1 += " "
+                r2 += " "
+                cursor += 1
+            }
+        }
+        return [r1, r2]
+    }
+
+    /// 样式 4「翻页卡」:2 行 —— 选中卡抬起(┌─┐ 顶盖 + ┘└ 侧脚,底线在它处断开),
+    /// 未选中标签嵌在底线里;悬浮格换成浅底(线让位给底色)
+    private func composeFolder(_ tabs: [TabInfo], _ selected: Int,
+                               _ hovered: Int?, _ n: Int) -> [String] {
+        let widths = Self.split(cols, n)
+        var r1 = "", r2 = ""
+        var cursor = 0
+        for (i, tab) in tabs.enumerated() {
+            let w = widths[i]
+            if i == selected {
+                r1 += "┌" + String(repeating: "─", count: max(0, w - 2)) + "┐"
+                let body = cellBody(tab, index: i, width: max(0, w - 2),
+                                    hovered: hovered, cellStart: cursor + 1)
+                r2 += "┘" + paint(body, index: i, selected: selected, hovered: hovered) + "└"
+            } else {
+                r1 += String(repeating: " ", count: w)
+                if hovered == i {
+                    // 悬浮:线让位,整格浅底 + x(玻璃条同构)
+                    let body = cellBody(tab, index: i, width: w, hovered: hovered, cellStart: cursor)
+                    r2 += paint(body, index: i, selected: selected, hovered: hovered)
+                } else {
+                    // 嵌在底线里:─── label ───
+                    let label = Self.truncate("\(i + 1) " + (tab.hasActivity ? "· " : "") + tab.title,
+                                              to: max(1, w - 6))
+                    let lw = Self.displayWidth(label)
+                    let padL = max(0, (w - lw - 2) / 2)
+                    let padR = max(0, w - lw - 2 - padL)
+                    r2 += String(repeating: "─", count: padL) + " " + label + " "
+                        + String(repeating: "─", count: padR)
+                }
+            }
+            ranges.append(cursor..<(cursor + w))
+            cursor += w
+        }
+        return [r1, r2]
     }
 
     /// 字符显示宽(1 或 2)。只认无争议的宽字符区段(CJK/全角);

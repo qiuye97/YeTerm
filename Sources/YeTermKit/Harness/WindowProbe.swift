@@ -95,6 +95,18 @@ public enum WindowProbe {
         pump(0.5)
         check("CRT 恢复后回盒绘条", tabbedWC?.crtTabBarVisibleForTesting == true)
 
+        // 五款盒绘条样式(2026-08-07):逐一切换渲染出帧(目检)+ 断言在场
+        for s in 0...4 {
+            delegate.settingsModel.crtTabBarStyle = s
+            pump(0.4)
+            check("盒绘条样式 \(s) 在场", tabbedWC?.crtTabBarVisibleForTesting == true)
+            let styleShot = NSTemporaryDirectory() + "yeterm-window-probe-tabbar-style\(s).png"
+            _ = tabbedWC?.overlayForTesting?.dumpFrame(to: styleShot)
+            print("frame: \(styleShot)")
+        }
+        delegate.settingsModel.crtTabBarStyle = 0
+        pump(0.3)
+
         // ── 回归(2026-08-07 用户实测三连 bug):切标签重影 / 输入不可见 / 焦点 ──
         // tab2 活动期间给 tab1 的 shell 灌输出(后台标签内容照样变),再切回:
         // 画面必须是 tab1 的**完整现状**,焦点必须回到 tab1 的 pane

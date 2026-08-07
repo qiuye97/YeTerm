@@ -1066,6 +1066,23 @@ private struct ScreenPage: View {
                     .foregroundStyle(.secondary)
                 Spacer()
             }
+            // 盒绘标签条样式(2026-08-07 用户需求:五款可选、跟着预设走;
+            // 只作用于机壳模式的字符标签条,玻璃条不受影响)
+            HStack {
+                Text(L("标签栏样式")).frame(width: 92, alignment: .leading)
+                Picker("", selection: $model.crtTabBarStyle) {
+                    Text(L("圆角框")).tag(0)
+                    Text(L("极简块")).tag(1)
+                    Text(L("胶囊块")).tag(2)
+                    Text(L("下划线")).tag(3)
+                    Text(L("翻页卡")).tag(4)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Text(L("机壳模式多标签的字符标签条"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             HStack {
                 Text(L("分屏分割线")).frame(width: 92, alignment: .leading)
                 Picker("", selection: $model.dividerStyle) {

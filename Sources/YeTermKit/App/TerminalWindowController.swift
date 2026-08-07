@@ -705,6 +705,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     private var tabStrip: TabStripController?     // CRT 盒绘条画布(荧光屏内)
     private var crtBarHovered: Int?               // 盒绘条悬浮格(浮 x/浅底;nil=无)
+    private var crtBarStyle = 0                   // 盒绘条样式(预设携带;applySettings 更新)
     private let glassBarModel = GlassTabBarModel()
     private var glassBarHost: NSView?             // 液态玻璃条(AppKit 悬浮层,懒建)
 
@@ -730,8 +731,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             let cols = max(20, Int((root.bounds.width - 2 * root.marginInset) / cellWpt))
             let hovered = (crtBarHovered.map { $0 < tabs.count ? $0 : nil } ?? nil)
             strip.update(tabs: tabs.map { .init(title: $0.title, hasActivity: $0.hasActivity) },
-                         selected: activeTabIndex, hovered: hovered, cols: cols)
-            root.crtBarHeight = CGFloat(cell.h) / scale * CGFloat(TabStripController.rows)
+                         selected: activeTabIndex, hovered: hovered, cols: cols, style: crtBarStyle)
+            root.crtBarHeight = CGFloat(cell.h) / scale * CGFloat(strip.rows)
             root.tabBarReserve = root.crtBarHeight + 6
             root.onTabBarClick = { [weak self] x in
                 guard let self, let strip = self.tabStrip else { return }
@@ -862,6 +863,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         applyWindowOpacity(cfg.windowOpacity ?? 1)
         // 标签栏样式跟着机壳/字体走(uniforms 刚更新完,判定才准)
+        crtBarStyle = cfg.crtTabBarStyle ?? 0
         refreshTabBar()
     }
 
