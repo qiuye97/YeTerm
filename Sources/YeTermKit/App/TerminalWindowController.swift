@@ -90,6 +90,36 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         private(set) var crtBarRect: CGRect?
         /// 盒绘条被点击(参数 = 条内 x 偏移,控制器换算成列→标签)
         var onTabBarClick: ((CGFloat) -> Void)?
+        /// 盒绘条悬浮(2026-08-07:悬浮浮 x/浅底,与玻璃条同构;nil = 移出条外)
+        var onTabBarHover: ((CGFloat?) -> Void)?
+        private var barTrackingArea: NSTrackingArea?
+
+        // 【学】NSTrackingArea:AppKit 的"鼠标移动订阅"。默认视图只收点击不收
+        //      移动,要 mouseMoved 就得挂一块追踪区(类比 Web 的 mousemove 监听)。
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let t = barTrackingArea { removeTrackingArea(t) }
+            let t = NSTrackingArea(rect: bounds,
+                                   options: [.mouseMoved, .mouseEnteredAndExited, .activeInActiveApp],
+                                   owner: self, userInfo: nil)
+            addTrackingArea(t)
+            barTrackingArea = t
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            let p = convert(event.locationInWindow, from: nil)
+            if let r = crtBarRect, r.contains(p) {
+                onTabBarHover?(p.x - r.minX)
+            } else {
+                onTabBarHover?(nil)
+            }
+            super.mouseMoved(with: event)
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            onTabBarHover?(nil)
+            super.mouseExited(with: event)
+        }
 
         override func mouseDown(with event: NSEvent) {
             let p = convert(event.locationInWindow, from: nil)
@@ -674,6 +704,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - 标签栏(双样式:CRT 盒绘条 / 液态玻璃条)
 
     private var tabStrip: TabStripController?     // CRT 盒绘条画布(荧光屏内)
+    private var crtBarHovered: Int?               // 盒绘条悬浮格(浮 x/浅底;nil=无)
     private let glassBarModel = GlassTabBarModel()
     private var glassBarHost: NSView?             // 液态玻璃条(AppKit 悬浮层,懒建)
 
@@ -697,16 +728,33 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             let cell = GlyphAtlas.cellSize(font: font, scale: scale)
             let cellWpt = max(CGFloat(cell.w) / scale, 1)
             let cols = max(20, Int((root.bounds.width - 2 * root.marginInset) / cellWpt))
+            let hovered = (crtBarHovered.map { $0 < tabs.count ? $0 : nil } ?? nil)
             strip.update(tabs: tabs.map { .init(title: $0.title, hasActivity: $0.hasActivity) },
-                         selected: activeTabIndex, cols: cols)
-            root.crtBarHeight = CGFloat(cell.h) / scale * 2   // 两行式盒绘条
+                         selected: activeTabIndex, hovered: hovered, cols: cols)
+            root.crtBarHeight = CGFloat(cell.h) / scale * CGFloat(TabStripController.rows)
             root.tabBarReserve = root.crtBarHeight + 6
             root.onTabBarClick = { [weak self] x in
                 guard let self, let strip = self.tabStrip else { return }
-                if let i = strip.tabIndex(atColumn: Int(x / cellWpt)) { self.selectTab(i) }
+                guard let hit = strip.hitTest(column: Int(x / cellWpt)) else { return }
+                if hit.isClose {
+                    self.closeTab(at: hit.tab)
+                } else {
+                    self.selectTab(hit.tab)
+                }
+            }
+            // 悬浮(2026-08-07,与玻璃条同构):换格才重排(字符画布重 feed 很便宜,
+            // 但没必要每次 mouseMoved 都来一趟)
+            root.onTabBarHover = { [weak self] x in
+                guard let self, let strip = self.tabStrip else { return }
+                let idx = x.flatMap { strip.tabIndex(atColumn: Int($0 / cellWpt)) }
+                if idx != self.crtBarHovered {
+                    self.crtBarHovered = idx
+                    self.refreshTabBar()
+                }
             }
         } else {
             root.crtBarHeight = 0
+            crtBarHovered = nil
             overlay?.tabStrip = nil
             if !wantGlass { root.tabBarReserve = 0 }
         }

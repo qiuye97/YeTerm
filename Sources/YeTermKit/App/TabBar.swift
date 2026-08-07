@@ -23,105 +23,126 @@ import SwiftUI
 
 // MARK: - ① CRT 盒绘标签条
 
-/// 盒绘标签条画布。产出两行字符画,形如:
+/// 盒绘标签条画布(2026-08-07 重构:与玻璃条同构的字符版)。三行字符画,形如:
 /// ```
-///  ┌─ 1 zsh ─┐
-/// ─┘         └── 2 ssh ─── 3 vim ──────────
+/// ┌────────────┬────────────┬────────────┐
+/// │x   1 zsh   │   2 ssh    │   3 vim    │
+/// └────────────┴────────────┴────────────┘
 /// ```
-/// 选中标签在上行、由线框托住,底线在它处断开;未选中标签嵌在底线里。
+/// 格子等宽平分、标题居中;**选中格整格反显**(荧光亮底暗字 = 深色底档);
+/// **悬浮格浅灰底 + 左侧浮出 x**(点 x 关那页);全部走 ANSI,经 CRT 染色后
+/// 反显块即磷光亮块、灰底即弱磷光 —— 和玻璃条"选中深/悬浮浅"一一对应。
 final class TabStripController {
     struct TabInfo {
         let title: String
         let hasActivity: Bool
     }
 
+    static let rows = 3   // 上框线 / 内容行 / 下框线
+
     private let ctx: MetalContext
     private let content: ContentRenderer
     private let termDelegate = HarnessTermDelegate()
     private var terminal: Terminal
     private var cols: Int
-    /// 每个标签占据的显示列区间(点击命中用;与 feed 的字符逐列对齐)
+    /// 每个标签占据的显示列区间(命中用;与 feed 的字符逐列对齐)
     private var ranges: [Range<Int>] = []
+    /// 悬浮格的 x 按钮命中列(略放宽到 3 列,好点)
+    private var closeRange: Range<Int>?
 
     init(ctx: MetalContext) {
         self.ctx = ctx
         self.content = ContentRenderer(ctx: ctx)
         self.cols = 80
         self.terminal = Terminal(delegate: termDelegate,
-                                 options: TerminalOptions(cols: 80, rows: 2))
+                                 options: TerminalOptions(cols: 80, rows: Self.rows))
     }
 
-    /// 全量重排 + 重 feed(2×cols 小画布,整幅重画零成本)
-    func update(tabs: [TabInfo], selected: Int, cols newCols: Int) {
+    /// 全量重排 + 重 feed(3×cols 小画布,整幅重画零成本)
+    func update(tabs: [TabInfo], selected: Int, hovered: Int?, cols newCols: Int) {
         let c = max(20, newCols)
         if c != cols {
             cols = c
             terminal = Terminal(delegate: termDelegate,
-                                options: TerminalOptions(cols: c, rows: 2))
+                                options: TerminalOptions(cols: c, rows: Self.rows))
         }
-        let (row1, row2) = compose(tabs: tabs, selected: selected)
-        terminal.feed(text: "\u{1b}[2J\u{1b}[H" + row1 + "\r\n" + row2)
+        let (r1, r2, r3) = compose(tabs: tabs, selected: selected, hovered: hovered)
+        terminal.feed(text: "\u{1b}[2J\u{1b}[H" + r1 + "\r\n" + r2 + "\r\n" + r3)
     }
 
     func render(font: NSFont, scale: CGFloat) -> MTLTexture? {
         content.render(terminal: terminal, font: font, scale: scale, wait: false)
     }
 
-    /// 点击命中:显示列 → 标签下标
+    /// 悬浮命中:显示列 → 标签下标(边框列返回 nil)
     func tabIndex(atColumn col: Int) -> Int? {
         ranges.firstIndex { $0.contains(col) }
     }
 
+    /// 点击命中:x 按钮列 → 关闭;格内其余列 → 切换
+    func hitTest(column col: Int) -> (tab: Int, isClose: Bool)? {
+        if let cr = closeRange, cr.contains(col),
+           let t = ranges.firstIndex(where: { $0.contains(col) }) {
+            return (t, true)
+        }
+        return tabIndex(atColumn: col).map { ($0, false) }
+    }
+
     // ---- 排版 ----
 
-    /// 生成两行字符画并记录各标签的列区间。
-    /// 逐段从左到右拼(两行同步推进游标),CJK 标题按显示宽 2 计列 ——
-    /// 画布是真终端,列数一致才能上下对齐、点击才打得准。
-    private func compose(tabs: [TabInfo], selected: Int) -> (String, String) {
+    /// 生成三行字符画并记录命中区间。格宽 = (cols - (n+1) 根竖线) / n,
+    /// 余数从左往右一格一列摊掉;CJK 标题按显示宽 2 计列。
+    private func compose(tabs: [TabInfo], selected: Int,
+                         hovered: Int?) -> (String, String, String) {
         ranges = []
-        guard !tabs.isEmpty else { return ("", String(repeating: "─", count: cols)) }
+        closeRange = nil
+        let n = tabs.count
+        guard n > 0, cols >= n * 5 + n + 1 else { return ("", "", "") }
 
-        // 标签文案:「N 标题」,后台有动静加「·」(参考图同款活动点)
-        var labels = tabs.enumerated().map { i, t in
-            "\(i + 1) " + (t.hasActivity ? "· " : "") + t.title
-        }
-        // 定宽预算:选中段框架占 6 列(┌─␣…␣─┐),未选中段占 2 列(前后空格),
-        // 段间线 2 列,首列留 1 列线头。超预算就按份truncate标题(至少留 4 列)。
-        func overhead(_ n: Int) -> Int { 1 + 6 + (n - 1) * 2 + n * 2 }
-        let budget = cols - overhead(tabs.count)
-        let widths = labels.map { Self.displayWidth($0) }
-        if widths.reduce(0, +) > budget {
-            let per = max(4, budget / tabs.count)
-            labels = labels.map { Self.truncate($0, to: per) }
-        }
+        let inner = cols - (n + 1)
+        let base = inner / n, extra = inner % n
+        let widths = (0..<n).map { base + ($0 < extra ? 1 : 0) }
 
-        var row1 = " ", row2 = "─"     // 首列:上行空、下行线头
+        var r1 = "┌", r2 = "│", r3 = "└"
         var cursor = 1
-        for (i, label) in labels.enumerated() {
-            let w = Self.displayWidth(label)
-            if i == selected {
-                // 上行 ┌─ label ─┐,下行 ┘…(空)…└,共 w+6 列
-                row1 += "┌─ " + label + " ─┐"
-                row2 += "┘" + String(repeating: " ", count: w + 4) + "└"
-                ranges.append(cursor..<(cursor + w + 6))
-                cursor += w + 6
-            } else {
-                // 嵌在底线里:␣label␣,共 w+2 列
-                row1 += String(repeating: " ", count: w + 2)
-                row2 += " " + label + " "
-                ranges.append(cursor..<(cursor + w + 2))
-                cursor += w + 2
+        for (i, tab) in tabs.enumerated() {
+            let w = widths[i]
+            r1 += String(repeating: "─", count: w)
+            r3 += String(repeating: "─", count: w)
+
+            // 标题:「N 标题」+ 活动点「·」;两侧各留 3 列(x 区 + 呼吸),居中
+            let label = Self.truncate("\(i + 1) " + (tab.hasActivity ? "· " : "") + tab.title,
+                                      to: max(1, w - 6))
+            let lw = Self.displayWidth(label)
+            let padL = max(0, (w - lw) / 2)
+            let padR = max(0, w - lw - padL)
+            var body = String(repeating: " ", count: padL) + label
+                     + String(repeating: " ", count: padR)
+            // 悬浮格左侧浮出 x(玻璃条同款交互;字符画布无真悬浮态,由控制器
+            // 用鼠标追踪喂进来)。x 恒在第 2 列,标题居中不因它挪动
+            if hovered == i, w >= 4 {
+                var chars = Array(body)
+                chars[1] = "x"
+                body = String(chars)
+                closeRange = cursor..<(cursor + 3)
             }
-            // 段间连接线 2 列
-            row1 += "  "
-            row2 += "──"
-            cursor += 2
+            if i == selected {
+                // 深色档:整格反显(SGR 7)→ CRT 染色后 = 磷光亮底 + 暗字
+                r2 += "\u{1b}[7m" + body + "\u{1b}[27m"
+            } else if hovered == i {
+                // 浅色档:暗灰底(真彩 SGR 48;2)→ 染色后 = 弱磷光底
+                r2 += "\u{1b}[48;2;84;84;84m" + body + "\u{1b}[49m"
+            } else {
+                r2 += body
+            }
+            ranges.append(cursor..<(cursor + w))
+            cursor += w + 1
+            let last = (i == n - 1)
+            r1 += last ? "┐" : "┬"
+            r2 += "│"
+            r3 += last ? "┘" : "┴"
         }
-        // 底线铺满剩余;两行都硬钳在 cols 内(防终端自动折行撑爆画布)
-        if cursor < cols {
-            row2 += String(repeating: "─", count: cols - cursor)
-        }
-        return (Self.clip(row1, to: cols), Self.clip(row2, to: cols))
+        return (r1, r2, r3)
     }
 
     /// 字符显示宽(1 或 2)。只认无争议的宽字符区段(CJK/全角);
