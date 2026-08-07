@@ -1409,6 +1409,8 @@ public enum AutoDrive {
             let path = "\(outPrefix)_crtbg_\(tag).png"
             guard overlay.dumpFrame(to: path), let img = loadPNG(path) else { return nil }
             print("frame: \(path)")
+            let u = overlay.uniforms
+            print("  [crtbg \(tag)] chroma=\(u.bgImageChroma) inset=\(u.screenInset) frameOn=\(u.frameOn) chromaColor=\(u.chromaColor) font=\(u.fontColor)")
             var blue = 0, green = 0, total = 0
             for y in stride(from: 0, to: img.height, by: 3) {
                 for x in stride(from: 0, to: img.width, by: 3) {
@@ -1424,6 +1426,12 @@ public enum AutoDrive {
         var themeCfg = crtCfg
         themeCfg.name = "我的配置"            // 用户配置区的名字,不属于内置「经典 CRT」组
         themeCfg.fontColor = "#00ff00"        // 纯绿磷光 + 零色彩浓度 → 染色档必然把橙变绿
+        // 背景也必须钉黑(2026-08-07 假红教训):染色公式 convertWithChroma =
+        // mix(**主题背景色**, 前景, 亮度) —— 图的暗部会漏出主题背景色。此前判据
+        // 恰好建立在用户配置背景为黑之上;用户日常主题切到 DOS 蓝(#0000a8)后,
+        // 蓝漏进暗部把"染色=纯绿"打红。测试主题的颜色身份必须全部自带,
+        // 不许从用户真实配置继承任何一项参与判定的颜色。
+        themeCfg.backgroundColor = "#000000"
         themeCfg.chromaColor = 0
         themeCfg.plainBackgroundImage = crtBGPath
         themeCfg.plainBackgroundImageMode = 0

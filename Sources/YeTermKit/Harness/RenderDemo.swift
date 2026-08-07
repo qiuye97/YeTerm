@@ -51,6 +51,7 @@ public struct RenderDemoOptions {
     public var plainBGPalette = 0    // --plain-bg-palette 0-3:像素风调色板(PICO-8/DB16/GameBoy/原色)
     public var plainBGChroma = false // --plain-bg-chroma:CRT 模式下把背景图荧光染色(v1.5.1)
     public var powerOn: Double?         // 开机动画进度定格(0~1;nil=稳态。v1.1 自测用)
+    public var screenInset: Double?     // --screen-inset Y:屏幕垂直内缩(机壳最小带的离屏调试口,2026-08-07)
 }
 
 final class HarnessTermDelegate: TerminalDelegate {
@@ -173,6 +174,7 @@ public enum RenderDemo {
             if opt.effects == "crt-noise" { u.staticNoise = 0.15 }
             if let t = opt.powerOn { u.powerOnProgress = Float(t) }   // 开机动画中间帧定格
             if let a = opt.degauss { u.degauss = Float(a) }           // 消磁波纹定格
+            if let si = opt.screenInset { u.screenInset = .init(0, Float(si)) }   // 机壳最小带调试
 
             // 普通模式背景图片(v1.2 #16):背景图铺底 + 内容(透明底)预乘混合
             // 合成一张,再进直通 CRT pass —— 与 GUI performCapture 同构。

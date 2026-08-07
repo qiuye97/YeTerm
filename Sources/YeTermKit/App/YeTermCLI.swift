@@ -174,6 +174,7 @@ public enum YeTermCLI {
             if let v = value(after: "--preset", in: args) { opt.presetName = v }
             if let v = value(after: "--preedit", in: args) { opt.preeditText = v }
             if let v = value(after: "--power-on", in: args), let n = Double(v) { opt.powerOn = n }
+            if let v = value(after: "--screen-inset", in: args), let n = Double(v) { opt.screenInset = n }
             if let v = value(after: "--boot-time", in: args), let n = Double(v) { opt.bootTime = n }
             if let v = value(after: "--degauss", in: args), let n = Double(v) { opt.degauss = n }
             if let v = value(after: "--plain-bg", in: args) { opt.plainBGPath = v }

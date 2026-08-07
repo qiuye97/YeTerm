@@ -1206,6 +1206,11 @@ final class MetalOverlayView: MTKView {
             u.powerOnProgress = 1    // 自测截图永远取稳态(确定性;动画由 GUI 目检)
         }
         u.burnInLastUpdate = effects.map { $0.burnInLastUpdate } ?? 0
+        // 取证口(2026-08-07 背景图染色排查):导出帧的实际参数
+        if ProcessInfo.processInfo.environment["YETERM_DEBUG_BGIMG"] != nil {
+            FileHandle.standardError.write(Data(
+                "[bgimg] on=\(u.bgImageOn) chroma=\(u.bgImageChroma) inset=\(u.screenInset) uv=\(u.bgImageUVScale) pass=\(u.colorPassthrough) tex=\(plainBG?.texture.map { "\($0.width)x\($0.height)" } ?? "nil")\n".utf8))
+        }
         let black = effects?.blackTexture
         // texture(1..4) = 噪点 / 辉光 / 余辉 / 背景图。空位一律用 blackTexture 占住
         // 维持索引对齐(compactMap 会让数组塌陷 → 后面的纹理全绑错位)
