@@ -492,6 +492,9 @@ final class MetalOverlayView: MTKView {
             activeObservers.append(nc.addObserver(forName: NSApplication.didResignActiveNotification,
                                                   object: nil, queue: .main) { [weak self] _ in
                 guard let self, !self.animateInBackground else { return }   // 后台动画开 → 不停摆
+                // 停摆前先手动出一帧:此刻窗口已 resign key,这帧画的正是失焦形态
+                // 光标(空心/淡显)—— 不画就冻在实心态,失焦样式永远上不了屏
+                self.draw()
                 self.suspend()
             })
             activeObservers.append(nc.addObserver(forName: NSApplication.didBecomeActiveNotification,
@@ -1016,9 +1019,11 @@ final class MetalOverlayView: MTKView {
             }
             if uniforms.burnIn > 0 {
                 // 光标拖尾(v1.1 #6 三轮):GPU 参数光标不在内容纹理里,余辉缓冲
-                // 看不见它 → 把光标块叠进累积输入。DECTCEM 藏光标/无焦点时不叠。
+                // 看不见它 → 把光标块叠进累积输入。DECTCEM 藏光标/无焦点时不叠;
+                // 键盘失焦(空心/淡显形态)也不叠 —— 失焦光标不动,不该有拖尾。
                 var cRect = SIMD4<Float>.zero
-                if let tv = focused, let r = cursorRectInComposite(tv: tv),
+                if let tv = focused, hasKeyboardFocus(tv),
+                   let r = cursorRectInComposite(tv: tv),
                    caretMirror.map({ $0.superview != nil }) ?? true {
                     cRect = r
                 }
@@ -1067,6 +1072,15 @@ final class MetalOverlayView: MTKView {
 
     private func applyVisibility() {
         isHidden = userHidden
+    }
+
+    /// 键盘焦点是否真的落在这个终端视图上:窗口是 key **且** firstResponder 是它。
+    /// ⌘F 搜索框抢走焦点、设置窗/别的 app 前置,都算失焦 → 光标画失焦形态。
+    /// 【学】firstResponder 是 AppKit 的「当前键盘焦点视图」,类比 web 的
+    /// document.activeElement;isKeyWindow 则是「这扇窗是不是前台接键盘的那扇」。
+    private func hasKeyboardFocus(_ tv: EventTerminalView) -> Bool {
+        guard let w = tv.window else { return false }
+        return w.isKeyWindow && w.firstResponder === tv
     }
 
     /// 当前 IME 预编辑文本(走 NSTextInputClient 公开接口)
@@ -1173,7 +1187,12 @@ final class MetalOverlayView: MTKView {
         // 光标(焦点 pane;UV 映射进合成画面):显隐镜像 SwiftTerm caretView
         let lastActivity = max(lastInputTime, lastActivityTime)
         let idle = now - lastActivity
-        let blinkOn = forceBlinkOn || !cursorBlinks || idle < 1.0
+        // 失焦形态(2026-08-07 用户需求,对齐 Terminal.app):键盘焦点不在终端时
+        // 光标**停止闪烁**(恒亮)并改画失焦形状(块=空心描边/下划线竖线=半强度,
+        // 形状在 shader 侧按 cursorOn=2 分派)。forceBlinkOn(确定性截图)视同有焦点,
+        // 保证 auto-drive/探针截图与历史基线逐像素一致。
+        let hasFocus = forceBlinkOn || hasKeyboardFocus(tv)
+        let blinkOn = forceBlinkOn || !hasFocus || !cursorBlinks || idle < 1.0
             || idle.truncatingRemainder(dividingBy: 1.0) < 0.6
         if let found = tv.subviews.first(where: { String(describing: type(of: $0)).contains("Caret") }) {
             caretMirror = found
@@ -1212,7 +1231,7 @@ final class MetalOverlayView: MTKView {
                 }
             }
             u.cursorRectUV = .init(pos.x, pos.y, cw, cellH)
-            u.cursorOn = 1
+            u.cursorOn = hasFocus ? 1 : 2      // 2 = 失焦形态(shader 侧约定)
             u.cursorStyle = cursorStyle
         } else {
             smoothCursorUV = nil

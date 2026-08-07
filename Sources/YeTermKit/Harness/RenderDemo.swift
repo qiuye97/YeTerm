@@ -243,6 +243,12 @@ public enum RenderDemo {
                 let w = 1.0 / Float(opt.cols), h = 1.0 / Float(opt.rows)
                 u.cursorRectUV = .init(Float(pos.x) * w, Float(pos.y) * h, w, h)
                 u.cursorOn = 1
+                // 取证口(2026-08-07 失焦光标):目检失焦形态/指定样式,不动 CLI 契约
+                let env = ProcessInfo.processInfo.environment
+                if env["YETERM_DEBUG_CURSOR_UNFOCUSED"] != nil { u.cursorOn = 2 }
+                if let s = env["YETERM_DEBUG_CURSOR_STYLE"].flatMap(Float.init) {
+                    u.cursorStyle = s
+                }
             }
             // M1b 派生纹理(配置驱动;离屏单步,确定性保持)
             let chain = EffectChain(ctx: mtl)

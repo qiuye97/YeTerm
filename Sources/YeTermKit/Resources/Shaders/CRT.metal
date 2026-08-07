@@ -66,7 +66,7 @@ struct CRTUniforms {
     int   rasterMode;              // 68  (0 无 / 1 扫描线 / 2 像素 / 3 子像素 / 4 modern=无)
     float2 contentScale;           // 72  drawable→内容纹理的映射比(≥1;letterbox,内容 1:1 像素呈现)
     float4 cursorRectUV;           // 80  光标块(内容纹理 UV 空间 x,y,w,h;原点左上)
-    float cursorOn;                // 96  >0.5 画光标(闪烁由 CPU 侧相位决定)
+    float cursorOn;                // 96  0 不画/1 画/2 失焦形态(闪烁由 CPU 侧相位决定)
     float cursorStyle;             // 100 0=块 1=下划线 2=竖线(macOS 终端三态)
     float flickering;              // 104 画面闪烁(原版顶点级,此处按 1.1.1 fallback 在片元算)
     float horizontalSyncStrength;  // 108 = lint(0.05,0.35,horizontalSync);0=关
@@ -529,11 +529,36 @@ fragment float4 crt_fragment(FSQuadOut in [[stage_in]],
     if (u.cursorOn > 0.5) {
         float2 rel = (c - u.cursorRectUV.xy) / u.cursorRectUV.zw;   // 光标格内局部坐标
         bool inRect = rel.x >= 0.0 && rel.x < 1.0 && rel.y >= 0.0 && rel.y < 1.0;
-        bool shape = inRect && (u.cursorStyle < 0.5 ? true :          // 0 块
-                                u.cursorStyle < 1.5 ? rel.y > 0.85 :  // 1 下划线
-                                                      rel.x < 0.12);  // 2 竖线
+        // 失焦形态(cursorOn=2,CPU 侧按键盘焦点编码;对齐 Terminal.app):
+        //   块 → 空心描边(只反色边框环,~2 物理像素等宽);
+        //   下划线/竖线 → 形状不变、反色强度减半(淡显);两者都由 CPU 停闪恒亮。
+        bool unfocused = u.cursorOn > 1.5;
+        bool shape;
+        float strength = 1.0;
+        if (u.cursorStyle < 0.5) {                                    // 0 块
+            if (unfocused) {
+                // 描边厚度按内容纹理实际像素算(约 1/14 格高,至少 1px),
+                // 除以各轴格尺寸 → 两条竖边与两条横边呈等宽像素描边
+                float2 cellPx = max(u.cursorRectUV.zw *
+                    float2(source.get_width(), source.get_height()), float2(1.0));
+                float2 b = max(1.0, round(cellPx.y / 14.0)) / cellPx;
+                shape = inRect && (rel.x < b.x || rel.x > 1.0 - b.x ||
+                                   rel.y < b.y || rel.y > 1.0 - b.y);
+            } else {
+                shape = inRect;
+            }
+        } else if (u.cursorStyle < 1.5) {                             // 1 下划线
+            shape = inRect && rel.y > 0.85;
+            strength = unfocused ? 0.5 : 1.0;
+        } else {                                                      // 2 竖线
+            shape = inRect && rel.x < 0.12;
+            strength = unfocused ? 0.5 : 1.0;
+        }
         if (shape) {
-            txt_color = float3(1.0) - txt_color;
+            // strength=1(有焦点)走精确反色 —— mix(a,b,1.0)=a+(b-a) 有 1ulp 舍入
+            // 风险,会破坏「缺省=原行为逐比特一致」的对拍纪律
+            float3 inv = float3(1.0) - txt_color;
+            txt_color = strength >= 1.0 ? inv : mix(txt_color, inv, strength);
         }
     }
 

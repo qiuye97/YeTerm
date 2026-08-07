@@ -36,7 +36,7 @@ struct CRTUniforms {
     var rasterMode: Int32 = 1                  // 0 无/1 扫描线/2 像素/3 子像素/4 modern
     var contentScale: SIMD2<Float> = .init(1, 1)   // drawable→内容映射比(letterbox)
     var cursorRectUV: SIMD4<Float> = .zero     // 光标块(内容 UV 空间 x,y,w,h;原点左上)
-    var cursorOn: Float = 0                    // >0.5 画光标
+    var cursorOn: Float = 0                    // 0 不画/1 画/2 失焦形态(空心/淡显)
     var cursorStyle: Float = 0                 // 0 块/1 下划线/2 竖线
     var flickering: Float = 0                  // 闪烁(默认关,配置驱动)
     var horizontalSyncStrength: Float = 0      // = lint(0.05,0.35,hsync);0=关
