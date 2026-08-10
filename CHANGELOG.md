@@ -5,6 +5,32 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.2] — 2026-08-10
+
+### Fixed
+
+- **The bottom line of the terminal is no longer swallowed by the CRT
+  bezel.** With the bezel on (always the case when screen curvature is
+  enabled), the shader insets the glass area by one title-bar height at the
+  top *and* the bottom — the bottom strip of the composited picture is
+  physically never shown. Layout only reserved that strip at the top, so the
+  last row of text — usually the prompt you are typing into — sat inside the
+  invisible band and looked "eaten" by the case. The text area now reserves
+  the same strip at the bottom; plain mode, bezel-off and full-screen
+  behavior is unchanged.
+
+### Changed
+
+- **Lower memory use** (was user-measured at 572 MB in 5K fullscreen): the
+  glyph atlas now grows on demand (16.1 → 4.0 MB in typical use), the Metal
+  layer keeps 2 drawables instead of 3, and the bloom chain is released while
+  CRT effects are off.
+- `make_release.sh` now follows the fixed-certificate signing policy
+  introduced in 1.3.1 (it still forced an ad-hoc signature; the 1.3.1 zip had
+  been re-signed by hand).
+
+---
+
 ## [1.3.1] — 2026-08-07
 
 ### Changed

@@ -2,11 +2,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # 打发行包:dist/YeTerm-<版本>.zip
 #
-# 与 make_app.sh 的区别(两处,都是为了「给别人用」):
-#   ① **强制 ad-hoc 签名**。作者本机的自签证书「YeTerm Signing」只存在于作者的
-#      钥匙串里,别人的机器根本不认识它 —— 对 Gatekeeper 来说和 ad-hoc 完全
-#      一样(都是没有 Developer ID、没公证),但 ad-hoc 让任何人自己构建都能得到
-#      同样的产物。作者自用那份仍可以用证书签(TCC 权限不会反复弹窗)。
+# 与 make_app.sh 的区别(打包方式,为了「给别人用」):
+#   ① 签名沿用 make_app.sh 的政策:**优先 YeTerm Signing 固定证书**
+#      (2026-08-07 用户裁决,同事实测 ad-hoc 每版重弹授权:TCC 隐私授权认
+#      签名身份,ad-hoc 每次打包指纹都变,下载方的本地网络等授权版版重来;
+#      固定证书对 Gatekeeper 并没有更差 —— 同样没公证、首开都要「仍要打开」
+#      一次,但授权跨版本保留)。本脚本早年强制 YETERM_ADHOC=1,53a4c57 改
+#      政策时漏改了这里(v1.3.1 资产当时是手工重签替换的),2026-08-10 补上。
+#      无证书环境(如同事机器)自动回退 ad-hoc,或 YETERM_ADHOC=1 显式指定。
 #   ② 用 `ditto --sequesterRsrc --keepParent` 打包。**别用 `zip -r`** ——
 #      那会丢掉扩展属性、破坏 .app 的代码签名,用户解开就是一个签名损坏的包。
 #      本脚本打完会解压回来重新验一次签名,确保来回一趟没坏。
@@ -24,8 +27,8 @@ cd "$ROOT"
 
 APP="dist/YeTerm.app"
 
-echo "==> 构建并打包(ad-hoc 签名)"
-YETERM_ADHOC=1 bash scripts/make_app.sh
+echo "==> 构建并打包(签名政策见 make_app.sh:优先 YeTerm Signing 固定证书)"
+bash scripts/make_app.sh
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")
 ZIP="dist/YeTerm-${VERSION}.zip"
