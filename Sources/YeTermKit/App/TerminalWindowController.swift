@@ -76,6 +76,16 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// 根容器:留白内缩 pane 树(CSS padding 语义),overlay 铺满全窗
     private final class RootView: NSView {
         var marginInset: CGFloat = 1
+        /// 机壳最小带让位(2026-08-10 用户实测「弧度时最下方内容被吃」的根修):
+        /// 机壳开启时 shader 把屏幕玻璃**上下各**内缩一条 = 标题栏高的机壳带
+        /// (MetalOverlayView.currentScreenInset 的 padding 变换),内容纹理最底下
+        /// 那条带**永远不上屏**。顶部一直有 topBar 让位(文字区扣掉标题栏),
+        /// 底部 2026-08-07 加带时漏了 —— 文字照排到窗底,最后一行正落在永不
+        /// 显示的带里。此开关 = u.frameOn(CRTConfig.frameLayerActive 同源),
+        /// 开则底部同样让出 topBar,文字区相对玻璃区上下对称。
+        var caseBandActive = false {
+            didSet { if caseBandActive != oldValue { needsLayout = true } }
+        }
         weak var splitHost: NSView?
         weak var overlayView: NSView?
         weak var searchBarView: NSView?   // 荧光搜索条(overlay 之上,右上角)
@@ -157,11 +167,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             // 让出这一条 —— 文字落点与改造前完全一致;机壳/背景(overlay)则照铺
             // 到窗顶,透出到透明标题栏下面。
             let topBar = max(0, bounds.height - (window?.contentLayoutRect.height ?? bounds.height))
+            // 机壳带高 = 标题栏高(与 shader 的 screenInset 同一来源 contentLayoutRect;
+            // 全屏无标题栏 → 0,机壳关 → 0,两处天然一致)
+            let bottomBand = caseBandActive ? topBar : 0
             // 多标签时标签栏再让一条(tabBarReserve;单标签为 0):
             //   盒绘条:标题栏 → margin → 盒绘条 → 文字;玻璃条:标题栏 → 玻璃条 → margin → 文字
-            let newSplitFrame = NSRect(x: inset, y: inset,
+            let newSplitFrame = NSRect(x: inset, y: inset + bottomBand,
                                        width: bounds.width - inset * 2,
-                                       height: bounds.height - inset * 2 - topBar - tabBarReserve)
+                                       height: bounds.height - inset * 2 - topBar - bottomBand - tabBarReserve)
             // 终端区挪位后必须重捕获(2026-08-07 重影修复配套):布局跑在捕获之后
             // 的话,合成画面还钉着旧落点 —— 文字画在挪位前的位置上
             if splitHost?.frame != newSplitFrame {
@@ -224,6 +237,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // 否则启动即普通模式时会顶着 CRT 大留白直到首次设置广播才恢复)
         root.marginInset = (options.config?.crtEffectsEnabled ?? true)
             ? Self.inset(forMargin: options.config?.margin) : 8
+        root.caseBandActive = (options.config ?? CRTConfig()).frameLayerActive
         // 消磁彩蛋(v1.2 #13):点机壳边框 = 按消磁钮(overlay hitTest=nil,点击落到 root)
         root.onCaseClick = { [weak self] in self?.overlay?.playDegauss() }
         window.contentView?.addSubview(root)
@@ -378,6 +392,15 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     var overlayForTesting: MetalOverlayView? { overlay }
     var crtTabBarVisibleForTesting: Bool { root.crtBarRect != nil && overlay?.tabStrip != nil }
     var crtTabBarRectForTesting: CGRect? { root.crtBarRect }
+    /// 机壳最小带让位取证(2026-08-10「底部内容被机壳吃掉」回归断言用):
+    /// 文字区距窗底的间隙 / 机壳带高(=标题栏高)/ 生效的窗级留白 / 机壳是否生效
+    var caseBandGeometryForTesting: (bottomGap: CGFloat, bandH: CGFloat,
+                                     marginInset: CGFloat, frameOn: Bool) {
+        (splitHost.frame.minY,
+         max(0, root.bounds.height - (window?.contentLayoutRect.height ?? root.bounds.height)),
+         root.marginInset,
+         (overlay?.uniforms.frameOn ?? 0) > 0.5)
+    }
     var glassTabBarVisibleForTesting: Bool { glassBarHost?.isHidden == false }
     /// 几何取证(2026-08-07 重影排查)
     var tabBarGeometryForTesting: String {
@@ -874,6 +897,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             root.marginInset = newInset
             root.needsLayout = true
         }
+        root.caseBandActive = cfg.frameLayerActive   // didSet 里变了才 needsLayout
         applyWindowOpacity(cfg.windowOpacity ?? 1)
         // 标签栏样式跟着机壳/字体走(uniforms 刚更新完,判定才准)
         crtBarStyle = cfg.crtTabBarStyle ?? 0

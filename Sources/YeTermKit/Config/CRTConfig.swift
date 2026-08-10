@@ -219,6 +219,19 @@ public struct CRTConfig: Codable {
         return n.isEmpty ? nil : n
     }
 
+    /// 机壳层是否实际生效(= apply() 里 u.frameOn 的判定,单独抽出来给**布局侧**用:
+    /// 机壳开启时 shader 会把屏幕玻璃上下各内缩一条标题栏高的机壳带
+    /// (2026-08-07 机壳最小带),文字区底部必须同步让位 —— 判定与 shader 必须
+    /// 同一份真相,别在布局侧再抄一遍条件,两处漂移就是 2026-08-10 那类
+    /// 「底部内容被机壳吃掉」的事故)。
+    /// 规则:CRT 总开关关 = 无机壳;弧度>0 强制开(2026-08-06 用户裁决);
+    /// 其余按 frameEnabled × frameMargin>0(缺省开,frameMargin 缺省 0.2)。
+    public var frameLayerActive: Bool {
+        guard crtEffectsEnabled != false else { return false }
+        let curveOn = (screenCurvature ?? 0) > 0
+        return ((frameEnabled ?? true) || curveOn) && ((frameMargin ?? 0.2) > 0 || curveOn)
+    }
+
     /// 映射到当前已实现的 uniform 集(M1b 接全链后扩展)。
     /// 弧度按 v1.2 世代语义 ×0.4(screenCurvatureSize)。
     func apply(to u: inout CRTUniforms) {
@@ -286,8 +299,8 @@ public struct CRTConfig: Codable {
         // 屏幕弧度>0 时机壳**强制开**(2026-08-06 用户裁决):弧度把屏幕四角鼓成
         // 弧形,没机壳包边就是四角残缺的怪相 —— 此时忽略 frameEnabled(设置页
         // 开关同步灰掉)。frameEnabled 本身不动:弧度归零后回到用户原选择。
-        let curveOn = (screenCurvature ?? 0) > 0
-        u.frameOn = ((frameEnabled ?? true) || curveOn) && (fSizeRaw > 0 || curveOn) ? 1 : 0
+        // 判定抽成 frameLayerActive(布局侧「机壳最小带让位」共用同一份真相)
+        u.frameOn = frameLayerActive ? 1 : 0
         let fgRaw = Self.strToColor(fontColor) ?? SIMD3<Float>(1, 1, 1)
         let bgRaw = Self.strToColor(backgroundColor) ?? SIMD3<Float>(0, 0, 0)
         let baseFrame = Self.strToColor(frameColor) ?? SIMD3<Float>(1, 1, 1)   // _staticFrameColor 默认 #fff

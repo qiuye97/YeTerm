@@ -91,6 +91,13 @@ public enum WindowProbe {
         let glassShot = NSTemporaryDirectory() + "yeterm-window-probe-glassbar.png"
         _ = tabbedWC?.overlayForTesting?.dumpFrame(to: glassShot)
         print("frame: \(glassShot)")
+        // 机壳关(普通模式)→ 无机壳带,底部间隙 = 窗级留白,不许多让(反向回归)
+        if let g = tabbedWC?.caseBandGeometryForTesting {
+            check("普通模式底部不让机壳带",
+                  !g.frameOn && abs(g.bottomGap - g.marginInset) < 0.6,
+                  detail: String(format: "bottomGap=%.1f margin=%.1f frameOn=%d",
+                                 g.bottomGap, g.marginInset, g.frameOn ? 1 : 0))
+        }
         delegate.settingsModel.crtEffectsEnabled = true
         pump(0.5)
         check("CRT 恢复后回盒绘条", tabbedWC?.crtTabBarVisibleForTesting == true)
@@ -121,6 +128,19 @@ public enum WindowProbe {
                                  below.y, mapped.y, r.minY, r.maxY))
         } else {
             check("命中映射测试前置(overlay/条命中区在场)", false)
+        }
+        // 机壳最小带让位(2026-08-10 用户实测「弧度时最下方内容被吃」回归):
+        // 机壳开启时 shader 把玻璃区上下各内缩一条 = 标题栏高的机壳带,内容纹理
+        // 最底那条带永不上屏 —— 文字区底部必须让出同高的带(顶部一直有 topBar
+        // 让位,底部曾漏,最后一行文字正落在永不显示的带里)。
+        // 精确断言:机壳开 → 底部间隙 = 窗级留白 + 带高
+        if let g = tabbedWC?.caseBandGeometryForTesting {
+            check("机壳开时文字区底部让出机壳带",
+                  g.frameOn && g.bandH > 0 && abs(g.bottomGap - (g.marginInset + g.bandH)) < 0.6,
+                  detail: String(format: "bottomGap=%.1f margin=%.1f bandH=%.1f frameOn=%d",
+                                 g.bottomGap, g.marginInset, g.bandH, g.frameOn ? 1 : 0))
+        } else {
+            check("机壳带让位取证前置(窗口在场)", false)
         }
         delegate.settingsModel.curvature = 0
         pump(0.4)
