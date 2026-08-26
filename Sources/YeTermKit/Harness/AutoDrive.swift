@@ -914,6 +914,58 @@ public enum AutoDrive {
             mouse(.leftMouseUp, at: farPoint(col: 0))
             pump(0.1)
         }
+        // 场景 22c(2026-08-26 用户实测「想选中一个 1 却选中两个/选不上」):
+        // 单字符精度 —— 拖选端点必须是**中点规则**(fork 补丁四,b96fa9c):
+        // 移动端点取距指针最近的格边界,指针过了字符中点才把它圈进来。
+        // 旧 floor 语义下轻扫单个窄字符 = 起止同格空选区(选不上),再拖远点又
+        // 多圈一个;反向拖还不含按住的字符。四条手势逐一断言复制文本。
+        step += 1
+        tv.font = TermHost.resolveFont(name: "Menlo", size: 14)
+        pump(0.3)
+        // '11' 铺在第 5 行第 2、3 列(前后都是空格,复制结果无歧义)
+        hitTerm.feed(text: "\u{1b}[2J\u{1b}[H\r\n\r\n\r\n\r\n\r\n  11  ")
+        pump(0.2)
+        let cCell = GlyphAtlas.cellSize(font: tv.font, scale: hitScale)
+        let cW = CGFloat(cCell.w) / hitScale, cH = CGFloat(cCell.h) / hitScale
+        func charPoint(xCells: CGFloat) -> NSPoint {
+            tv.convert(NSPoint(x: xCells * cW, y: tv.bounds.height - 5.5 * cH), to: nil)
+        }
+        // 慢速拖(每步 1 物理像素):复刻真实手势 —— 拖选语义对事件序列敏感,
+        // 一步跳到终点测不出「选区边缘滞后指针」这类毛病
+        func slowSelect(_ from: CGFloat, _ to: CGFloat) -> String {
+            mouse(.leftMouseDown, at: charPoint(xCells: from))
+            pump(0.02)
+            let stepC = (1.0 / hitScale) / cW
+            var x = from
+            let dir: CGFloat = to >= from ? 1 : -1
+            while (dir > 0 && x < to) || (dir < 0 && x > to) {
+                x += dir * stepC
+                mouse(.leftMouseDragged, at: charPoint(xCells: x))
+            }
+            mouse(.leftMouseDragged, at: charPoint(xCells: to))
+            mouse(.leftMouseUp, at: charPoint(xCells: to))
+            pump(0.05)
+            let text = tv.getSelection() ?? ""
+            mouse(.leftMouseDown, at: charPoint(xCells: 15))   // 清选区
+            mouse(.leftMouseUp, at: charPoint(xCells: 15))
+            pump(0.03)
+            return text
+        }
+        let precisionCases: [(CGFloat, CGFloat, String, String)] = [
+            (2.2, 2.9, "1", "轻扫第一个 1(同格内)"),
+            (3.2, 4.05, "1", "轻扫第二个 1(刚过界)"),
+            (2.5, 4.1, "11", "从 #1 中心拖过 #2"),
+            (3.5, 2.4, "11", "反向拖(按住的 #2 必须也在选区里)"),
+        ]
+        for (from, to, expect, name) in precisionCases {
+            let got = slowSelect(from, to)
+            if got == expect {
+                print("✓ 单字符选取 \(name):拖 \(from)→\(to) 复制 '\(got)'")
+            } else {
+                print("✗ 单字符选取 \(name):拖 \(from)→\(to) 期望 '\(expect)' 实得 '\(got)'")
+                hitOK = false
+            }
+        }
         tv.font = hitFontOrig   // 还原用户字体,不污染后续场景
         pump(0.3)
 

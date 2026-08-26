@@ -42,8 +42,14 @@ let package = Package(
         //   ②物理像素对齐 ceil→round(resolveFont 把 advance 对齐到半逻辑点后,
         //   advance×scale 落在整数 ±1ulp,ceil 会把 +ulp 残差顶成整整一像素,
         //   与图集 round 出的列宽每格漂 1px,选区越拖越偏 —— 用户实测 bug 根因)。
+        // 补丁四(b96fa9c):纯字符拖选改「中点规则」(Terminal.app/xterm 行规)——
+        //   移动端点取距指针最近的**格边界**(过字符中点才圈入),锚格按方向枢轴化
+        //   (向右贡献左边界/向左贡献右边界,按住的字符始终被包含)。旧的 floor
+        //   格索引语义下选区滞后指针最多一整格:轻扫单个窄字符=空选区(起止同格),
+        //   反向拖还不含按住的字符(用户实测「想选一个 1 却选中两个」的根因)。
+        //   双击选词/三击选行的既有扩展路径不动。
         // revision 钉死保可复现;后续性能定制也走这个 fork,升级上游时先 rebase。
-        .package(url: "https://github.com/qiuye97/SwiftTerm.git", revision: "2abc31e9c75d8678adcf3a3ccf8d3961fb635891")
+        .package(url: "https://github.com/qiuye97/SwiftTerm.git", revision: "b96fa9c37f0a78c7ddc23b298f1600753bfbfb72")
     ],
     targets: [
         // 薄可执行壳:只做 CLI 分发

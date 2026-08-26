@@ -5,7 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [1.3.3] — 2026-08-26
+## [1.3.4] — 2026-08-26
+
+### Fixed
+
+- **Selecting a single narrow character now works.** Sweeping the pointer
+  across one glyph (say, one `1` in `11`) used to select either nothing or
+  both characters: drag selection extended by *cell index*, so the selection
+  edge always trailed the pointer by up to a full cell — both endpoints of a
+  small sweep landed in the same cell and the end-exclusive range came out
+  empty, while dragging far enough to see a highlight overshot by a
+  character. Dragging backwards didn't even include the glyph you pressed
+  on. Plain drags now use the midpoint rule that Terminal.app/xterm use
+  (fork patch 4): the moving end of the selection is the cell *boundary*
+  nearest to the pointer — a glyph is included exactly when the pointer
+  crosses its horizontal midpoint — and the pressed glyph is always part of
+  the selection, in both directions. Double-click word and triple-click line
+  selection are unchanged.
 
 ### Fixed
 
