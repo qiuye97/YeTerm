@@ -35,8 +35,15 @@ let package = Package(
         //   把内容更新通知**封顶在 60/s,与显示器刷新率无关** —— 高刷屏上由 PTY 输出
         //   驱动的滚动永远上不了 60fps。改为可由宿主设置的 `updateCoalescingFPS`
         //   (缺省仍 60,行为与上游逐字相同),YeTerm 按 NSScreen.maximumFramesPerSecond 设它。
+        // 补丁三(2abc31e):computeFontDimensions 的列宽测量修两处 ——
+        //   ①'W' 改经 CTFontGetGlyphsForCharacters 查字形(像素字体常无 post 表
+        //   字形名,NSFont.glyph(withName:) 静默返回 .notdef,其 advance 往往是
+        //   全宽 em → 格宽翻倍,鼠标命中列 = 实际列的一半,Ark Pixel 首当其冲);
+        //   ②物理像素对齐 ceil→round(resolveFont 把 advance 对齐到半逻辑点后,
+        //   advance×scale 落在整数 ±1ulp,ceil 会把 +ulp 残差顶成整整一像素,
+        //   与图集 round 出的列宽每格漂 1px,选区越拖越偏 —— 用户实测 bug 根因)。
         // revision 钉死保可复现;后续性能定制也走这个 fork,升级上游时先 rebase。
-        .package(url: "https://github.com/qiuye97/SwiftTerm.git", revision: "0cf2becc8baece9056a5c5e9bc293d552d123ea2")
+        .package(url: "https://github.com/qiuye97/SwiftTerm.git", revision: "2abc31e9c75d8678adcf3a3ccf8d3961fb635891")
     ],
     targets: [
         // 薄可执行壳:只做 CLI 分发

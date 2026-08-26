@@ -16,6 +16,7 @@
 //     免拷贝互转(Apple 底层 C 框架与上层对象框架的历史设计)。
 // ─────────────────────────────────────────────────────────────────────────────
 import AppKit
+import CoreText
 import SwiftTerm
 
 /// TerminalView 装配:字体、环境变量、shell 启动。
@@ -160,9 +161,17 @@ enum TermHost {
         // advance(浮点),我们的网格渲染用整像素 cell —— 两者每列差零点几像素,
         // Zpix 80 列末累积 ~3 列。把 advance 用矩阵微缩放对齐到**半逻辑点**
         // (round(adv×2)/2,Retina 下恰为整物理像素;Menlo +0.8%、Zpix −2%,
-        // 视觉无感),hit-test 与渲染共用此字体 → 列位逐点一致
-        let g = widthApplied.glyph(withName: "W")
-        let adv = widthApplied.advancement(forGlyph: g).width
+        // 视觉无感),hit-test 与渲染共用此字体 → 列位逐点一致。
+        // ⚠️ 测量必须走 CTFontGetGlyphsForCharacters(2026-08-26 选区列漂移勘差):
+        // glyph(withName:"W") 依赖字体 post 表的字形名,像素字体(Ark Pixel 等)
+        // 常整个省略 → 静默返回 .notdef(advance 是全宽 em,真实列宽的两倍),
+        // 补偿会按错误目标缩放真实字形。与 GlyphAtlas.cellSize 同一查法,天然同源。
+        var wChar: [UniChar] = [0x57]   // 'W'
+        var wGlyph = CGGlyph(0)
+        CTFontGetGlyphsForCharacters(widthApplied as CTFont, &wChar, &wGlyph, 1)
+        var wAdvance = CGSize.zero
+        CTFontGetAdvancesForGlyphs(widthApplied as CTFont, .horizontal, &wGlyph, &wAdvance, 1)
+        let adv = wAdvance.width
         guard adv > 0.5 else { return widthApplied }
         let target = max(round(adv * 2) / 2, 1)
         let comp = target / adv

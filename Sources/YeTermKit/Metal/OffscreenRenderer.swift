@@ -67,12 +67,16 @@ final class OffscreenRenderer {
     /// 分屏合成 pass(M2 单显示器语义):清黑后把各 pane 内容纹理按视口位摆进
     /// 合成画面,再画荧光分割线(viewport 即画布区域,全屏三角形恰好铺满视口)。
     /// draws.texture == nil 表示实色白块(分割线)。
+    /// draws.clip(2026-08-26 分屏恢复压叠防御层):非 nil 时以 scissor 把这一笔
+    /// 钉死在矩形内 —— pane 内容纵有布局瞬变也**绝不**画到邻居 pane 头上。
+    /// 【学】viewport 决定"纹理铺在哪、铺多大"(会缩放),scissor 只做剪刀
+    /// (超出部分丢弃、不缩放)—— 裁剪必须用后者,前者会把画面压扁。
     /// `background`(v1.2 #16 普通模式背景图):非 nil 时先把它 aspect-fill 铺满
     /// 全画面,pane 内容改用**预乘 alpha 混合**叠上(内容纹理透明清屏 + 字形
     /// 覆盖度即预乘形式,默认底色格透出背景图,彩色块/文字照常遮盖)。
     func encodeComposite(into target: MTLTexture,
                          commandBuffer cmd: MTLCommandBuffer,
-                         draws: [(texture: MTLTexture?, viewport: MTLViewport)],
+                         draws: [(texture: MTLTexture?, viewport: MTLViewport, clip: CGRect?)],
                          clearColor: MTLClearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1),
                          background: MTLTexture? = nil) throws {
         let blit = try pipelineState(library: "Passthrough", fragment: "passthrough_fragment",
@@ -112,6 +116,16 @@ final class OffscreenRenderer {
             vp = MTLViewport(originX: x0, originY: y0, width: x1 - x0, height: y1 - y0,
                              znear: 0, zfar: 1)
             enc.setViewport(vp)
+            // scissor 同样必须整个落在目标内;剪没了就跳过这一笔
+            var scissor = MTLScissorRect(x: 0, y: 0, width: target.width, height: target.height)
+            if let clip = d.clip {
+                let cx0 = max(0.0, Double(clip.minX)), cy0 = max(0.0, Double(clip.minY))
+                let cx1 = min(W, Double(clip.maxX)), cy1 = min(H, Double(clip.maxY))
+                guard cx1 - cx0 >= 1, cy1 - cy0 >= 1 else { continue }
+                scissor = MTLScissorRect(x: Int(cx0), y: Int(cy0),
+                                         width: Int(cx1 - cx0), height: Int(cy1 - cy0))
+            }
+            enc.setScissorRect(scissor)
             if let tex = d.texture {
                 enc.setRenderPipelineState(blit)
                 enc.setFragmentTexture(tex, index: 0)

@@ -5,6 +5,36 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.3] — 2026-08-26
+
+### Fixed
+
+- **Mouse selection no longer drifts as you drag further right.** The
+  highlighted (and copied) range used to fall increasingly short of the
+  pointer — one cell every dozen-or-so columns, worse with some fonts. Two
+  defects in SwiftTerm's cell-width measurement (fixed in our fork, patch 3):
+  the `'W'` glyph was looked up by name, which silently returns the
+  full-width `.notdef` glyph for pixel fonts without `post`-table glyph names
+  (Ark Pixel — the bundled default — measured **twice** its real cell width);
+  and the pixel-grid snap used `ceil`, which turns a one-ulp float residue at
+  exact-integer boundaries into a whole extra pixel per cell. Hit-testing now
+  measures through CoreText and rounds — bit-identical to the glyph-atlas
+  renderer's grid, so pointer position and highlight agree at every column.
+- **Restoring a session with split panes no longer piles one pane on top of
+  another** (previously it could take a `⌃D` on the covering pane to recover).
+  The split tree was rebuilt while its container still had zero size; AppKit
+  distributes a split view's space proportionally to *current* subview sizes,
+  so a zero-sized subtree stayed at zero width while its sibling filled the
+  window and covered it — and the saved ratios were applied exactly once,
+  racing the first layout pass. Restored trees are now seeded with
+  weight-proportional frames, the container is never zero-sized, and ratio
+  application verifies convergence and retries on layout until it sticks.
+  As a belt-and-braces invariant, the compositor now scissors every pane's
+  texture to its own rectangle, so pane content can never paint over a
+  neighbour again.
+
+---
+
 ## [1.3.2] — 2026-08-10
 
 ### Fixed

@@ -848,10 +848,13 @@ public enum AutoDrive {
         if let sel = tv.selectionSnapshot {
             let selRow = min(sel.start.row, sel.end.row) - hitTerm.buffer.yDisp
             let selCol = min(sel.start.col, sel.end.col)
-            if selRow == hitRow && abs(selCol - hitC1) <= 1 {
-                print("✓ 选区 hit 对齐:点第 \(hitRow) 行选中第 \(selRow) 行(列 \(selCol))")
+            let selEnd = max(sel.start.col, sel.end.col)
+            // 终点列也必须钉住(2026-08-26 教训:此前只断言起点列,起点在第 2 列
+            // 偏差还没累积出来,每格漂 1px 的列漂移 bug 从这条断言底下溜走了)
+            if selRow == hitRow && abs(selCol - hitC1) <= 1 && abs(selEnd - hitC2) <= 1 {
+                print("✓ 选区 hit 对齐:点第 \(hitRow) 行选中第 \(selRow) 行(列 \(selCol)~\(selEnd))")
             } else {
-                print("✗ 选区错位 点(\(hitC1),\(hitRow)) 选中(\(selCol),\(selRow))")
+                print("✗ 选区错位 点(\(hitC1)~\(hitC2),\(hitRow)) 选中(\(selCol)~\(selEnd),\(selRow))")
                 hitOK = false
             }
         } else {
@@ -862,6 +865,57 @@ public enum AutoDrive {
         pump(0.05)
         mouse(.leftMouseUp, at: mousePoint(col: 0, row: 0))
         pump(0.1)
+
+        // 场景 22b(2026-08-26 用户实测「选中越长越对不上」):远列拖选 × 两款
+        // 问题字体 —— 命中列与渲染列必须逐点一致到第 56 列。
+        //   ① Ark Pixel:post 表无字形名,NSFont.glyph(withName:"W") 静默返回
+        //     .notdef(全宽 em)→ SwiftTerm 格宽翻倍,命中列 = 实际列一半;
+        //   ② Menlo 13.7pt(小数字号):resolveFont 补偿把 advance 对齐半逻辑点后
+        //     advance×scale 落在整数 ±1ulp,SwiftTerm 旧 ceil 会把 +ulp 顶成
+        //     整像素,每格漂 1px、56 列末漂 ~3 列。
+        // 修法在 fork 补丁三(CT 查字形 + round 对齐);此处是它的端到端哨兵。
+        let hitFontOrig = tv.font
+        for (fName, fSize) in [("Ark Pixel 12px Mono zh_cn", CGFloat(14)),
+                               ("Menlo", CGFloat(13.7))] {
+            step += 1
+            tv.font = TermHost.resolveFont(name: fName, size: fSize)
+            pump(0.3)
+            hitTerm.feed(text: "\u{1b}[2J\u{1b}[H" + String(repeating: "0123456789", count: 8))
+            pump(0.2)
+            let cell2 = GlyphAtlas.cellSize(font: tv.font, scale: hitScale)
+            let cw2 = CGFloat(cell2.w) / hitScale, ch2 = CGFloat(cell2.h) / hitScale
+            func farPoint(col: Int) -> NSPoint {
+                tv.convert(NSPoint(x: (CGFloat(col) + 0.5) * cw2,
+                                   y: tv.bounds.height - 0.5 * ch2), to: nil)
+            }
+            let farC1 = 2, farC2 = 56
+            mouse(.leftMouseDown, at: farPoint(col: farC1))
+            pump(0.05)
+            mouse(.leftMouseDragged, at: farPoint(col: farC1))
+            pump(0.05)
+            mouse(.leftMouseDragged, at: farPoint(col: farC2))
+            pump(0.05)
+            mouse(.leftMouseUp, at: farPoint(col: farC2))
+            pump(0.2)
+            if let sel = tv.selectionSnapshot {
+                let c1 = min(sel.start.col, sel.end.col), c2 = max(sel.start.col, sel.end.col)
+                if abs(c1 - farC1) <= 1 && abs(c2 - farC2) <= 1 {
+                    print("✓ 远列 hit 对齐(\(fName) \(fSize)pt):拖 \(farC1)~\(farC2) 选中 \(c1)~\(c2)")
+                } else {
+                    print("✗ 远列 hit 漂移(\(fName) \(fSize)pt):拖 \(farC1)~\(farC2) 选中 \(c1)~\(c2)")
+                    hitOK = false
+                }
+            } else {
+                print("✗ 远列拖选未产生选区(\(fName))")
+                hitOK = false
+            }
+            mouse(.leftMouseDown, at: farPoint(col: 0))
+            pump(0.05)
+            mouse(.leftMouseUp, at: farPoint(col: 0))
+            pump(0.1)
+        }
+        tv.font = hitFontOrig   // 还原用户字体,不污染后续场景
+        pump(0.3)
 
         // 场景 23(v1.3 提示符主题,端到端):真实 shell + 真信号 + 读屏验证。
         // 前提:run() 开头已 ShellIntegration.install() 刷新脚本;本场景开一个

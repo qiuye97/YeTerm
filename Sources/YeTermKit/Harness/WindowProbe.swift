@@ -261,6 +261,58 @@ public enum WindowProbe {
         restored.window?.close()
         pump(0.5)
 
+        // ---- 恢复竞态回归(2026-08-26 用户实测「恢复后分屏压叠」)----
+        // 病灶:buildTree 在 splitHost 0×0 时建树,NSSplitView 首次 tiling 按子视图
+        // 现有尺寸比例分配 → 0 尺寸子树分到 0 宽、旁边默认 frame 的 pane 铺满压住它;
+        // applyRestoredRatios 那记异步若跑在首次布局之前(量不到宽高被留档),
+        // 活动标签无人重试 → 压叠永久保留。修法 = buildTree 权重播种 +
+        // RootView.onLayout 补应用。这里故意把比例应用打在 showWindow 之前
+        // (复刻竞态输的一侧),布局必须仍收敛:不退化、不压叠、纹理不越界、比例正确。
+        let raceTree = SessionState.LayoutNode.split(vertical: true, weights: [1269.5, 1275.5], children: [
+            .pane(cwd: nil),
+            .split(vertical: false, weights: [631.5, 749.5],
+                   children: [.pane(cwd: nil), .pane(cwd: nil)]),
+        ])
+        let raceWC = delegate.makeWindow(restore: .init(frame: [60, 60, 1280, 800], layout: raceTree))
+        raceWC.applyRestoredRatios()   // 竞态复刻:比例应用先于窗口首次布局
+        raceWC.showWindow(nil)
+        pump(1.2)
+        let racePanes = raceWC.panes
+        check("竞态恢复 3 pane", racePanes.count == 3, detail: "panes=\(racePanes.count)")
+        let raceRects = racePanes.map { $0.convert($0.bounds, to: nil) }
+        check("竞态恢复无退化 pane", raceRects.allSatisfy { $0.width > 50 && $0.height > 50 },
+              detail: raceRects.map { "\(Int($0.width))x\(Int($0.height))" }.joined(separator: " | "))
+        var raceOverlap = false
+        for i in 0..<raceRects.count {
+            for j in (i + 1)..<raceRects.count {
+                let inter = raceRects[i].intersection(raceRects[j])
+                if inter.width > 1, inter.height > 1 { raceOverlap = true }
+            }
+        }
+        check("竞态恢复 pane 互不压叠", !raceOverlap)
+        let raceScale = raceWC.window?.backingScaleFactor ?? 2
+        var texFits = true
+        var texDetail = ""
+        for p in racePanes {
+            let cell = GlyphAtlas.cellSize(font: p.terminalView.font, scale: raceScale)
+            let t = p.terminalView.getTerminal()
+            if CGFloat(t.cols * cell.w) > p.terminalView.frame.width * raceScale + 2
+                || CGFloat(t.rows * cell.h) > p.terminalView.frame.height * raceScale + 2 {
+                texFits = false
+            }
+            texDetail += "(\(t.cols)x\(t.rows))"
+        }
+        check("竞态恢复纹理不越出 pane", texFits, detail: texDetail)
+        if racePanes.count == 3 {
+            // 内层上下比例应收敛到存档权重 631.5:749.5(占比 0.457,容差 5%)
+            let h1 = racePanes[1].frame.height, h2 = racePanes[2].frame.height
+            let frac = min(h1, h2) / max(h1 + h2, 1)
+            check("竞态恢复分屏比例收敛", abs(frac - 631.5 / 1381.0) < 0.05,
+                  detail: String(format: "h=%.0f/%.0f 小侧占比=%.3f(期望 0.457)", h1, h2, frac))
+        }
+        raceWC.window?.close()
+        pump(0.5)
+
         print(pass ? "WINDOW-PROBE-PASS" : "WINDOW-PROBE-FAIL")
         return pass ? 0 : 1
     }

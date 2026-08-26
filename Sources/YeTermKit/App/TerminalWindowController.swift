@@ -69,7 +69,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     // ⌘N/⌘T 继承目录(v1.2 #8):首 pane 的出生目录(AppDelegate 从当前 key 窗查来)
     private let initialCwd: String?
     // 会话恢复(v1.2 #2):待应用的分屏比例(树建好后窗口 frame 才定,ratio 要延后设)
-    private var pendingSplitRatios: [(sv: NSSplitView, weights: [Double])] = []
+    private var pendingSplitRatios: [(sv: NSSplitView, weights: [Double], attempts: Int)] = []
+    private var isApplyingRatios = false   // applyRestoredRatios 的重入闸(layoutIfNeeded 会触发 onLayout 再进来)
     /// 窗口即将关闭(shell 仍活着,cwd 可查)—— AppDelegate 挂快照钩子
     var onAboutToClose: ((TerminalWindowController) -> Void)?
 
@@ -92,6 +93,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         weak var glassBarView: NSView?    // 液态玻璃标签条(无机壳样式)
         /// 机壳区被点击(v1.2 #13 消磁彩蛋:点终端外的边框壳=按了消磁钮)
         var onCaseClick: (() -> Void)?
+        /// 布局完成回调(2026-08-26 恢复压叠根修配套):待应用的分屏比例若在
+        /// 窗口首次布局前就试过(量不到宽高被留档),这里是活动标签唯一的重试点
+        var onLayout: (() -> Void)?
 
         // 标签栏让位(2026-08-06 双样式标签栏):reserve = splitHost 顶部额外内缩,
         // crtBarHeight>0 时布局顺手算出盒绘条的命中区(点击选标签用)
@@ -196,6 +200,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                                    y: bounds.maxY - topBar - tabBarReserve - 34 - 12,
                                    width: w, height: 34)
             }
+            onLayout?()
         }
     }
 
@@ -240,8 +245,28 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         root.caseBandActive = (options.config ?? CRTConfig()).frameLayerActive
         // 消磁彩蛋(v1.2 #13):点机壳边框 = 按消磁钮(overlay hitTest=nil,点击落到 root)
         root.onCaseClick = { [weak self] in self?.overlay?.playDegauss() }
+        // 分屏比例补应用(2026-08-26 恢复压叠根修):AppDelegate 那记异步
+        // applyRestoredRatios 若跑在首次布局之前,分屏量不到宽高会留档;
+        // 活动标签此前无人重试(mountActiveTab 只管后台标签切入)——
+        // 布局一到位就补上。pending 清空后这里是纯空转,零成本
+        root.onLayout = { [weak self] in
+            guard let self else { return }
+            // 活动树钉到 splitHost 实际尺寸(保险丝:autoresize 链一旦经过 0 尺寸
+            // 中转会算出垃圾 frame,这里以非零→非零直设纠正,等比缩放无损)
+            if let tree = self.activeTab?.rootView, tree.superview === self.splitHost,
+               tree.frame != self.splitHost.bounds, self.splitHost.bounds.width > 1 {
+                tree.frame = self.splitHost.bounds
+            }
+            if !self.pendingSplitRatios.isEmpty { self.applyRestoredRatios() }
+        }
         window.contentView?.addSubview(root)
         root.splitHost = splitHost
+        // splitHost 出生即给非零 frame(2026-08-26 恢复压叠根修的另一半):
+        // 它默认 0×0,恢复的分屏树挂进来会被压成 0×0 —— NSSplitView 的 subview
+        // 一旦 0 尺寸就进了「collapsed」吸收态,之后 setPosition/等比缩放都
+        // 救不回来(实测 setPosition 后子视图纹丝不动)。全链保持非零→非零,
+        // 等比缩放才是干净的
+        splitHost.frame = root.bounds
         root.addSubview(splitHost)
 
         if let ov = MetalOverlayView.make() {
@@ -278,10 +303,16 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         } else {
             tabLayouts = [nil]
         }
+        // 播种 frame 用存档窗口尺寸(窗口此刻还没 setFrame 到存档尺寸,存档值
+        // 更贴近最终布局;尺寸只求比例正确,绝对值随后由自适应布局接管)
+        var seedRect = NSRect(x: 0, y: 0, width: rect.width, height: rect.height)
+        if let f = restoreState?.frame, f.count == 4, f[2] > 100, f[3] > 100 {
+            seedRect = NSRect(x: 0, y: 0, width: f[2], height: f[3])
+        }
         for layout in tabLayouts {
             let tab = Tab()
             tabs.append(tab)
-            let tree: NSView = layout.map { buildTree($0, into: tab) }
+            let tree: NSView = layout.map { buildTree($0, into: tab, frame: seedRect) }
                 ?? makePane(cwd: initialCwd, into: tab)   // ⌘N/⌘T 继承目录(v1.2 #8)
             tree.autoresizingMask = [.width, .height]
             tab.rootView = tree
@@ -487,38 +518,81 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         return .pane(cwd: nil)
     }
 
-    /// 按存档树重建 pane/NSSplitView 结构(比例先记账,frame 定型后应用)
-    private func buildTree(_ node: SessionState.LayoutNode, into tab: Tab) -> NSView {
+    /// 按存档树重建 pane/NSSplitView 结构(比例先记账,frame 定型后应用)。
+    /// `frame`:该节点的**播种 frame**(2026-08-26「恢复后分屏压叠」根修)——
+    /// 建树时 splitHost 还是 0×0,NSSplitView 首次 tiling 按子视图**现有尺寸**
+    /// 按比例分配:0 尺寸的子树会被分到 0 宽、旁边 480×320 默认 frame 的 pane
+    /// 铺满全窗压在它上面;此前全靠 applyRestoredRatios 异步补一枪救场,
+    /// 若那一枪跑在窗口首次布局之前(total=0 → 留档),活动标签**永远没有人
+    /// 重试** → 压叠永久保留(用户实测:要 ⌃D 关掉盖在上面的 pane 才恢复)。
+    /// 播种 = 按存档权重预分割 frame 逐层传下去,比例从出生就正确,不赌时序。
+    private func buildTree(_ node: SessionState.LayoutNode, into tab: Tab,
+                           frame: CGRect) -> NSView {
         switch node {
         case .pane(let cwd):
-            return makePane(cwd: cwd, into: tab)
+            let pane = makePane(cwd: cwd, into: tab)
+            pane.frame = frame
+            return pane
         case .split(let vertical, let weights, let children):
-            let sv = NSSplitView(frame: splitHost.bounds)
+            let sv = NSSplitView(frame: frame)
             sv.isVertical = vertical
             sv.dividerStyle = .thin
             sv.autoresizingMask = [.width, .height]
-            children.forEach { sv.addArrangedSubview(buildTree($0, into: tab)) }
-            pendingSplitRatios.append((sv, weights))
+            // 权重净化:存档若带非正/缺位权重(极端竞态下存出的坏档),按均分兜底,
+            // 不把退化布局原样复刻回来
+            let usable = weights.count == children.count && weights.allSatisfy { $0 >= 1 }
+            let sum = usable ? weights.reduce(0, +) : Double(children.count)
+            var offset = 0.0
+            for (i, child) in children.enumerated() {
+                let w = usable ? weights[i] / sum : 1.0 / Double(max(children.count, 1))
+                let total = Double(vertical ? frame.width : frame.height)
+                let span = (total * w).rounded()
+                let childFrame = vertical
+                    ? CGRect(x: offset, y: 0, width: span, height: frame.height)
+                    : CGRect(x: 0, y: offset, width: frame.width, height: span)
+                offset += span
+                sv.addArrangedSubview(buildTree(child, into: tab, frame: childFrame))
+            }
+            pendingSplitRatios.append((sv, weights, 0))
             return sv
         }
     }
 
-    /// 恢复分屏比例:必须在窗口 frame 设好、布局跑过之后调(AppDelegate async 调)。
-    /// 多标签(v1.6)后台标签的树不在视图层级、量不出宽高 —— 量不出的先留着,
-    /// 该标签首次被切到时(mountActiveTab)再补一次
+    /// 恢复分屏比例。可安全反复调:量不到宽高(后台标签树不在层级/布局未跑)或
+    /// **应用后没到位**的条目留档,由 RootView.onLayout / mountActiveTab 再试。
+    /// 2026-08-26 恢复压叠勘差的两条实测教训,改这里前必读:
+    ///   ① setPosition 不保证生效 —— 布局中途/子视图 0 尺寸(collapsed)时可能
+    ///     纹丝不动,所以**必须验证实际占比达标才销账**,失败留给下次布局重试;
+    ///   ② 按中途尺寸定的分割线会被随后的"末子视图吸收增量"重排固化成错比例,
+    ///     所以先 layoutIfNeeded 把几何推到当前窗口的最终状态再动手。
     func applyRestoredRatios() {
-        pendingSplitRatios = pendingSplitRatios.filter { (sv, weights) in
+        guard !isApplyingRatios else { return }   // layoutIfNeeded → onLayout 会重入
+        isApplyingRatios = true
+        defer { isApplyingRatios = false }
+        window?.layoutIfNeeded()
+        pendingSplitRatios = pendingSplitRatios.compactMap { (sv, weights, attempts) in
             let total = Double(sv.isVertical ? sv.bounds.width : sv.bounds.height)
             let sum = weights.reduce(0, +)
-            guard sum > 0 else { return false }        // 权重坏档,丢弃
-            guard sv.window != nil, total > 0 else { return true }   // 还没上屏,留到切入时
+            // 权重坏档(缺位/非正,极端竞态下存出的退化档)丢弃 —— 保住 buildTree
+            // 播种的均分布局,别把 0 宽 pane 原样复刻回来
+            guard weights.count == sv.arrangedSubviews.count,
+                  weights.allSatisfy({ $0 >= 1 }), sum > 0 else { return nil }
+            guard sv.window != nil, total > 0 else { return (sv, weights, attempts) }   // 还没上屏,留到切入时
             var acc = 0.0
             for i in 0..<max(0, sv.arrangedSubviews.count - 1) {
-                let w = i < weights.count ? weights[i] : total / Double(sv.arrangedSubviews.count)
-                acc += w / sum * total
+                acc += weights[i] / sum * total
                 sv.setPosition(acc, ofDividerAt: i)
             }
-            return false
+            // 验证:各子视图实际占比 vs 目标占比(3% 容差;分割线厚度吃掉零点几个点)
+            let spans = sv.arrangedSubviews.map { Double(sv.isVertical ? $0.frame.width : $0.frame.height) }
+            let realTotal = max(spans.reduce(0, +), 1)
+            let converged = zip(spans, weights).allSatisfy { abs($0 / realTotal - $1 / sum) < 0.03 }
+            if ProcessInfo.processInfo.environment["YETERM_DEBUG_LAYOUT"] != nil {
+                FileHandle.standardError.write(Data(
+                    "[ratio] 应用 vertical=\(sv.isVertical) total=\(total) 到位=\(converged) 第\(attempts + 1)次 子视图=\(sv.arrangedSubviews.map { NSStringFromRect($0.frame) })\n".utf8))
+            }
+            if converged || attempts >= 8 { return nil }   // 到位销账;重试超限放弃(别跟用户拖动打架)
+            return (sv, weights, attempts + 1)
         }
         overlay?.scheduleCapture()
     }

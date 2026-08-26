@@ -202,7 +202,7 @@ public enum RenderDemo {
                                 draws: [(contentTex, MTLViewport(originX: 0, originY: 0,
                                                                  width: Double(contentTex.width),
                                                                  height: Double(contentTex.height),
-                                                                 znear: 0, zfar: 1))],
+                                                                 znear: 0, zfar: 1), nil)],
                                 clearColor: clear, background: bgTex)
                         } catch {
                             err("\(error)")

@@ -128,11 +128,12 @@ final class GlyphAtlas {
 
     /// 字体度量 → cell 像素尺寸。
     /// ⚠️ 必须与 SwiftTerm computeFontDimensions **逐点一致**(2026-07-29 用户实测
-    /// "选一行选中上面一行"勘差):鼠标→行列换算在 SwiftTerm 侧用**逻辑点级
-    /// ceil 行高 + 原始 advance 列宽**,此前我们用物理像素级 ceil(更紧凑),
-    /// Menlo 每行差 0.5 逻辑 px、24 行末累积 0.7 行 —— 屏幕下半部分点击即选到
-    /// 上一行。行高改逻辑级 ceil ×scale;列宽靠 TermHost.resolveFont 的矩阵
-    /// 微补偿(advance 对齐半逻辑点),两侧共用同一字体对象天然一致。
+    /// "选一行选中上面一行"勘差):行高 = 逻辑点级 ceil ×scale,与 SwiftTerm 同式;
+    /// 列宽 = **round(advance×scale)**,fork 补丁三(2abc31e)起 SwiftTerm 侧
+    /// 也是同一公式(CT 查 'W' 字形 + round 物理像素对齐)—— 此前它用
+    /// glyph(withName:) + ceil,俩差异各自坑过一次:像素字体无字形名时格宽翻倍、
+    /// 补偿后 advance×scale 的 +1ulp 浮点残差被 ceil 顶成整像素(每格漂 1px,
+    /// 选区越拖越偏,2026-08-26 用户实测)。改这里必须连 fork 一起改。
     static func cellSize(font: NSFont, scale: CGFloat) -> (w: Int, h: Int) {
         let ct = font as CTFont          // 逻辑点度量(与 SwiftTerm 同源同字体)
         var glyph = CGGlyph(0)

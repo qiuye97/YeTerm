@@ -839,10 +839,10 @@ final class MetalOverlayView: MTKView {
                     let by = anchor.map { ((bounds.height - $0.maxY) * scale).rounded() } ?? 0
                     focusedCellPx = boot.cellPx
                     focusedRectPx = CGRect(x: bx, y: by, width: CGFloat(tex.width), height: CGFloat(tex.height))
-                    let bootDraws: [(texture: MTLTexture?, viewport: MTLViewport)] =
+                    let bootDraws: [(texture: MTLTexture?, viewport: MTLViewport, clip: CGRect?)] =
                         [(tex, MTLViewport(originX: max(0, bx), originY: max(0, by),
                                            width: Double(tex.width), height: Double(tex.height),
-                                           znear: 0, zfar: 1))]
+                                           znear: 0, zfar: 1), nil)]
                     if let cmd = mtl.queue.makeCommandBuffer() {
                         try? renderer.encodeComposite(into: composite, commandBuffer: cmd, draws: bootDraws)
                         cmd.commit()
@@ -879,7 +879,7 @@ final class MetalOverlayView: MTKView {
             selectionDirty = false
         }
 
-        var draws: [(texture: MTLTexture?, viewport: MTLViewport)] = []
+        var draws: [(texture: MTLTexture?, viewport: MTLViewport, clip: CGRect?)] = []
 
         // 背景图(v1.2 #16):**合成层路径只属于直通模式**;有图 → pane 内容透明清屏。
         // CRT 模式绝不能走这里 —— 图一旦进了内容纹理就成了"内容",会被荧光染色、
@@ -925,9 +925,23 @@ final class MetalOverlayView: MTKView {
             // 观感发虚(同 2026-07-29 锯齿事故的次因;取整后字形逐像素对齐)
             let topY = ((bounds.height - rect.maxY) * scale).rounded()
             let leftX = (rect.minX * scale).rounded()
+            let rw = (rect.width * scale).rounded(), rh = (rect.height * scale).rounded()
+            // YETERM_DEBUG_LAYOUT=1:逐帧打印 pane 几何,纹理超出布局矩形即告警
+            // (2026-08-26 恢复压叠取证口,留作常备诊断)
+            if ProcessInfo.processInfo.environment["YETERM_DEBUG_LAYOUT"] != nil {
+                FileHandle.standardError.write(Data(
+                    "[layout] tex=\(tex.width)x\(tex.height) rect=\(Int(rw))x\(Int(rh)) at (\(Int(leftX)),\(Int(topY))) cols=\(terminal.cols) rows=\(terminal.rows)\n".utf8))
+                if Double(tex.width) > rw + 2 || Double(tex.height) > rh + 2 {
+                    FileHandle.standardError.write(Data("[layout-bug] 纹理溢出 pane 矩形!\n".utf8))
+                }
+            }
+            // clip = pane 布局矩形:健康状态下纹理 ≤ 矩形,裁剪是恒等操作;
+            // 布局瞬变/极端竞态下纹理偏大时,多出的部分**绝不**画到邻居头上
+            // (2026-08-26 恢复压叠的防御层 —— 根修在 buildTree 播种,这里兜底)
             draws.append((tex, MTLViewport(originX: leftX, originY: topY,
                                            width: Double(tex.width), height: Double(tex.height),
-                                           znear: 0, zfar: 1)))
+                                           znear: 0, zfar: 1),
+                          CGRect(x: leftX, y: topY, width: rw, height: rh)))
             if view === focused {
                 focusedCellPx = src.content.cellPx
                 focusedRectPx = CGRect(x: leftX, y: topY,
@@ -949,7 +963,7 @@ final class MetalOverlayView: MTKView {
 
             func line(_ lx: Double, _ ly: Double, _ lw: Double, _ lh: Double) {
                 draws.append((nil, MTLViewport(originX: lx, originY: ly, width: lw, height: lh,
-                                               znear: 0, zfar: 1)))
+                                               znear: 0, zfar: 1), nil))
             }
             if dividerStyle == 0 {
                 line(x, y, w, h)
@@ -982,7 +996,7 @@ final class MetalOverlayView: MTKView {
             draws.append((stripTex, MTLViewport(originX: max(0, sx), originY: max(0, sy),
                                                 width: Double(stripTex.width),
                                                 height: Double(stripTex.height),
-                                                znear: 0, zfar: 1)))
+                                                znear: 0, zfar: 1), nil))
         }
 
         // OSD 面板(v1.2 #14):画面正中,和内容一起过 CRT(真显示器 OSD 的质感)
@@ -993,7 +1007,7 @@ final class MetalOverlayView: MTKView {
             draws.append((osdTex, MTLViewport(originX: max(0, ox), originY: max(0, oy),
                                               width: Double(osdTex.width),
                                               height: Double(osdTex.height),
-                                              znear: 0, zfar: 1)))
+                                              znear: 0, zfar: 1), nil))
         }
 
         // 粘贴确认面板(v1.3 改版):OSD 同款合成路径,画面正中
@@ -1004,7 +1018,7 @@ final class MetalOverlayView: MTKView {
             draws.append((pgTex, MTLViewport(originX: max(0, px), originY: max(0, py),
                                              width: Double(pgTex.width),
                                              height: Double(pgTex.height),
-                                             znear: 0, zfar: 1)))
+                                             znear: 0, zfar: 1), nil))
         }
 
         // 服务器选单(v1.3 SSH):OSD 同款合成路径,画面正中
@@ -1015,7 +1029,7 @@ final class MetalOverlayView: MTKView {
             draws.append((spTex, MTLViewport(originX: max(0, sx), originY: max(0, sy),
                                              width: Double(spTex.width),
                                              height: Double(spTex.height),
-                                             znear: 0, zfar: 1)))
+                                             znear: 0, zfar: 1), nil))
         }
 
         // 取证口(2026-08-07 重影排查):打印本次合成的每一笔(探针置位)
