@@ -61,6 +61,15 @@ enum AnsiColor {
     // 与 crtOverride 同一套安装/卸载时机(applyCRTMode / RenderDemo 各一处)
     static var crtFgOverride: SIMD3<Float>?
 
+    // ---- 选区配色(2026-08-27 用户需求「选中高亮颜色可自定义」,跟着预设走):
+    // nil = 反色模式(选中格前景/背景互换,复古终端经典行为 = 历史行为);
+    // 非 nil = 自定义:bg = 选中底色;fg = nil 保留每格原本的前景色(只换底,
+    // ls 彩色/语法高亮不被抹平),非 nil = 选中范围统一覆盖文字颜色。
+    // CRT/普通两种模式都吃 —— CRT 下照常被荧光染色/白热化(用户裁决 2026-08-27:
+    // 不做特殊处理,单色主题只体现明暗)。安装/卸载在 applyCRTMode / RenderDemo,
+    // 与 plainOverride 同一套时机;全主线程读写
+    static var selectionOverride: (bg: SIMD3<Float>, fg: SIMD3<Float>?)?
+
     /// 当前生效的默认前景/背景/16 色(消费方无感知切换;普通模式覆盖优先)
     static var defaultFg: SIMD3<Float> { plainOverride?.fg ?? crtFgOverride ?? crtFg }
     static var defaultBg: SIMD3<Float> { plainOverride?.bg ?? crtBg }

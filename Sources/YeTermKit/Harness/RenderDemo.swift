@@ -90,6 +90,8 @@ public enum RenderDemo {
         // 配置不再判(--config 手喂什么就渲什么,复现/调试用得上)
         AnsiColor.crtFgOverride = demoCfg?.crtEffectsEnabled == false
             ? nil : demoCfg?.crtTextFg()
+        // 选区配色同源(2026-08-27;fixture 无选区,装上只为与 GUI 行为一致)
+        AnsiColor.selectionOverride = demoCfg?.selectionColors()
         let font = TermHost.resolveFont(name: opt.fontName, size: opt.fontSize,
                                         width: CGFloat(demoCfg?.fontWidth ?? 1))
         let content = ContentRenderer(ctx: mtl)

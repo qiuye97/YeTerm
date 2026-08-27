@@ -164,6 +164,31 @@ public struct CRTConfig: Codable {
     /// 定标而来(knee 0.20 + 强度 0.85 时与照片的均方差 0.035,关闭时 0.376,好 10.7 倍)
     public var overdriveKnee: Double?
 
+    // 选区配色(2026-08-27 用户需求,YeTerm 扩展,**跟着预设走**——用户裁决
+    // 「每个预设不同,可玩性更高」):
+    //   selectionColorMode nil/0 = 反色(选中格前景/背景互换,复古终端经典行为
+    //     = 历史行为,缺省);1 = 自定义。
+    //   自定义时 selectionBackgroundColor 为选中底色(缺省 #264f78);
+    //   selectionTextColor nil = 保留每格原本的前景色(只换底,彩色输出不被抹平),
+    //     非 nil = 选中范围统一覆盖文字颜色。
+    // CRT 模式下两色照常进内容纹理被荧光染色/白热化(用户裁决:不做特殊处理,
+    // 单色主题 chroma 低时只体现明暗,设置页有说明文案)
+    public var selectionColorMode: Int?
+    public var selectionBackgroundColor: String?
+    public var selectionTextColor: String?
+
+    /// 自定义选区底色的出厂缺省(VS Code 暗色系选区蓝,暗底主题上柔和不刺眼)
+    public static let defaultSelectionBgHex = "#264f78"
+
+    /// 选区配色 → AnsiColor.selectionOverride(nil = 反色模式)。
+    /// hex255 精确直出(YeTerm 扩展字段,不吃 crterm strToColor ÷256 怪癖)
+    func selectionColors() -> (bg: SIMD3<Float>, fg: SIMD3<Float>?)? {
+        guard (selectionColorMode ?? 0) == 1 else { return nil }
+        let bg = Self.hex255(selectionBackgroundColor)
+            ?? Self.hex255(Self.defaultSelectionBgHex) ?? .init(0, 0, 0)
+        return (bg, Self.hex255(selectionTextColor))
+    }
+
     // 小件三连(YeTerm v1.2 #8 扩展)
     public var inheritCwd: Bool?          // ⌘N/⌘T 新窗继承当前目录;缺省开
     public var scrollbackLines: Int?      // 滚回历史行数;缺省 10000

@@ -467,7 +467,100 @@ private struct PlainColorsPage: View {
         }
         .glassCard()
 
+        SelectionColorCard(model: model, crtMode: false)
+
         BackgroundImageCard(model: model, crtMode: false)
+    }
+}
+
+// MARK: - 选中高亮卡片(2026-08-27;CRT/普通两个颜色页共用)
+
+/// 选区配色跟着预设走(用户裁决「每个预设不同,可玩性更高」),两种模式共用
+/// 同一份设置,故与 BackgroundImageCard 同款做法:一张卡片挂两个颜色页。
+/// 反色(缺省)= 选中格前景/背景互换 = 历史行为;自定义 = 指定选中底色,
+/// 文字颜色不设置则保留每格原本的颜色(只换底,ls 彩色/语法高亮不被抹平)。
+private struct SelectionColorCard: View {
+    @ObservedObject var model: SettingsModel
+    /// true = 挂在 CRT 颜色页(补一句"会被荧光染色"的说明);false = 普通模式颜色页
+    var crtMode: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L("选中高亮")).font(.caption.bold()).foregroundStyle(.secondary)
+            Picker("", selection: $model.selectionColorMode) {
+                Text(L("反色")).tag(0)
+                Text(L("自定义")).tag(1)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if model.selectionColorMode == 1 {
+                HStack(spacing: 0) {
+                    colorCell(L("选中背景色"), bgBinding)
+                    Divider().opacity(0.25).padding(.vertical, 4)
+                    colorCell(L("选中文字颜色"), fgBinding)
+                }
+                HStack(alignment: .top) {
+                    Text(model.selectionTextColorHex == nil
+                         ? L("文字颜色未设置:选中时保留每个字符原本的颜色,只换底色。")
+                         : L("文字颜色已设置:选中范围内的文字统一用这个颜色。"))
+                        .font(.caption).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    if model.selectionTextColorHex != nil {
+                        Button(L("保留原色")) { model.selectionTextColorHex = nil }
+                            .glassButton()
+                            .controlSize(.small)
+                    }
+                }
+            }
+            if model.selectionColorMode == 0 {
+                Text(L("反色 = 选中处前景/背景互换,复古终端的经典行为。"))
+                    .font(.caption).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if crtMode {
+                Text(L("CRT 模式下选中颜色同样经过荧光染色与白热化;色彩浓度低的单色主题只体现明暗,选不出色相。"))
+                    .font(.caption).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .glassCard()
+    }
+
+    /// 对称色格(与两个颜色页的 colorCell 同款,卡片自带一份避免跨结构体引用)
+    private func colorCell(_ title: String, _ binding: Binding<Color>) -> some View {
+        VStack(spacing: 10) {
+            Text(title)
+            ColorPicker("", selection: binding, supportsOpacity: false)
+                .labelsHidden()
+                .scaleEffect(1.35)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func hexToBinding(_ get: @escaping () -> String,
+                              _ set: @escaping (String) -> Void) -> Binding<Color> {
+        Binding<Color>(
+            get: { colorFromHex(get()) },
+            set: { color in
+                let ns = NSColor(color).usingColorSpace(.sRGB) ?? .white
+                set(String(format: "#%02x%02x%02x",
+                           Int(round(ns.redComponent * 255)),
+                           Int(round(ns.greenComponent * 255)),
+                           Int(round(ns.blueComponent * 255))))
+            }
+        )
+    }
+
+    private var bgBinding: Binding<Color> {
+        hexToBinding({ model.selectionBgColorHex }, { model.selectionBgColorHex = $0 })
+    }
+
+    /// 文字颜色绑定:nil(保留原色)状态下显示当前模式的默认文字色,写入即物化
+    private var fgBinding: Binding<Color> {
+        hexToBinding({
+            model.selectionTextColorHex
+                ?? (crtMode ? (model.crtTextColorHex ?? "#ffffff") : model.plainTextColorHex)
+        }, { model.selectionTextColorHex = $0 })
     }
 }
 
@@ -834,6 +927,9 @@ private struct ColorsPage: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .glassCard()
+
+        // 选中高亮(2026-08-27:与普通模式共用同一份设置,跟着预设走)
+        SelectionColorCard(model: model, crtMode: true)
 
         // 背景图片(v1.5.1:CRT 模式也能铺;与普通模式共用同一份设置)
         BackgroundImageCard(model: model, crtMode: true)

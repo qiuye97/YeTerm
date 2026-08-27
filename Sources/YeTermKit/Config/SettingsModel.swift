@@ -97,6 +97,11 @@ final class SettingsModel: ObservableObject {
     @Published var plainBackgroundDarken: Double = 0.5    // 暗化程度(仅 mode=3;0.5=旧固定观感)
     @Published var plainBackgroundAnimFPS: Int = 30       // 动图/视频取帧上限挡位(15/30/60)
     @Published var crtBackgroundImageChroma: Bool = false   // 背景图荧光染色(仅 CRT 模式)
+    // 选区配色(2026-08-27,跟着预设走):0 反色(缺省)/1 自定义;
+    // 文字色 nil = 保留每格原本前景色(详见 CRTConfig 同名字段注释)
+    @Published var selectionColorMode: Int = 0
+    @Published var selectionBgColorHex: String = CRTConfig.defaultSelectionBgHex
+    @Published var selectionTextColorHex: String?
     // 小件三连(v1.2 #8)
     @Published var inheritCwd: Bool = true
     @Published var scrollbackLines: Int = 10000
@@ -205,6 +210,11 @@ final class SettingsModel: ObservableObject {
         plainBackgroundDarken = c.plainBackgroundDarken ?? 0.5
         plainBackgroundAnimFPS = c.plainBackgroundAnimFPS ?? 30
         crtBackgroundImageChroma = c.crtBackgroundImageChroma ?? false
+        // 选区配色是**预设携带字段,直赋回缺省不回落当前值**(同壁纸五件套的理由:
+        // 用 ?? 兜底当前值会让上一套预设的选区色残留,表现成"所有预设共用一套")
+        selectionColorMode = c.selectionColorMode ?? 0
+        selectionBgColorHex = c.selectionBackgroundColor ?? CRTConfig.defaultSelectionBgHex
+        selectionTextColorHex = c.selectionTextColor
         inheritCwd = c.inheritCwd ?? inheritCwd
         scrollbackLines = c.scrollbackLines ?? scrollbackLines
         optionAsMeta = c.optionAsMeta ?? optionAsMeta
@@ -319,6 +329,11 @@ final class SettingsModel: ObservableObject {
                 c.plainBackgroundDarken = o.plainBackgroundDarken ?? c.plainBackgroundDarken
                 c.plainBackgroundAnimFPS = o.plainBackgroundAnimFPS ?? c.plainBackgroundAnimFPS
                 c.crtBackgroundImageChroma = o.crtBackgroundImageChroma ?? c.crtBackgroundImageChroma
+                // 选区配色入白名单(2026-08-27):出厂恒 nil(反色),用户给某预设
+                // 配的选区色记在它的 override 里,换预设各用各的(同壁纸处理)
+                c.selectionColorMode = o.selectionColorMode ?? c.selectionColorMode
+                c.selectionBackgroundColor = o.selectionBackgroundColor ?? c.selectionBackgroundColor
+                c.selectionTextColor = o.selectionTextColor ?? c.selectionTextColor
             }
             // 经典 CRT 锁定兜底(旧档可能存过"关"):设备还原主题恒为 CRT 开;
             // 文字颜色恒纯白(2026-08-03,同一条锁定逻辑,防旧 override 残值)
@@ -518,6 +533,9 @@ final class SettingsModel: ObservableObject {
         c.plainBackgroundDarken = plainBackgroundDarken
         c.plainBackgroundAnimFPS = plainBackgroundAnimFPS
         c.crtBackgroundImageChroma = crtBackgroundImageChroma
+        c.selectionColorMode = selectionColorMode
+        c.selectionBackgroundColor = selectionBgColorHex
+        c.selectionTextColor = selectionTextColorHex
         c.inheritCwd = inheritCwd
         c.scrollbackLines = scrollbackLines
         c.optionAsMeta = optionAsMeta

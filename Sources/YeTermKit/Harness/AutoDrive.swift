@@ -1655,8 +1655,115 @@ public enum AutoDrive {
         pump(0.2)
         snap("anim_bg")
 
+        // 场景 30(2026-08-27 用户需求「选中高亮颜色可自定义」):选区配色端到端。
+        // 普通模式直通(颜色 ÷255 精确直出)保证可逐值断言;真实鼠标拖选 + 整屏
+        // 像素统计(单点采样会栽在"采样点正落在文字笔画上",场景 28 的教训):
+        //   ① 自定义档选空白区 = 大片选区底色(天蓝 0,128,255,不与屏上任何色撞车);
+        //   ② 文字色未设:选中文字行后白色笔画仍在(保留原色)、底变蓝;
+        //   ③ 文字色设红:选中文字行出现大片红色笔画(统一覆盖);
+        //   ④ 反色档(缺省)回归:选空白区 = 前景白亮块,蓝色彻底消失(历史行为)。
+        var selOK = true
+        step += 1
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(tv)
+        pump(0.2)
+        var selCfg = plainCfg
+        selCfg.plainTextColor = "#ffffff"
+        selCfg.plainBackgroundColor = "#000000"
+        selCfg.selectionColorMode = 1
+        selCfg.selectionBackgroundColor = "#0080ff"
+        selCfg.selectionTextColor = nil
+        wc.applySettings(selCfg, fontSize: 14, cursorStyle: 0)
+        pump(0.3)
+        let selTerm = tv.getTerminal()
+        // 第 7 行铺一段 M(笔画最密,统计文字色像素才够本);第 10 行留空白
+        selTerm.feed(text: "\u{1b}[2J\u{1b}[H" + String(repeating: "\r\n", count: 7)
+                     + "MMMMMMMMMMMMMMMM")
+        pump(0.3)
+        let selCell = GlyphAtlas.cellSize(font: tv.font, scale: hitScale)
+        let selCW = CGFloat(selCell.w) / hitScale, selCH = CGFloat(selCell.h) / hitScale
+        func selPoint(col: Int, row: Int) -> NSPoint {
+            tv.convert(NSPoint(x: (CGFloat(col) + 0.5) * selCW,
+                               y: tv.bounds.height - (CGFloat(row) + 0.5) * selCH), to: nil)
+        }
+        func selDrag(row: Int, _ c1: Int, _ c2: Int) {
+            mouse(.leftMouseDown, at: selPoint(col: c1, row: row))
+            pump(0.03)
+            mouse(.leftMouseDragged, at: selPoint(col: c1, row: row))
+            pump(0.03)
+            mouse(.leftMouseDragged, at: selPoint(col: c2, row: row))
+            pump(0.03)
+            mouse(.leftMouseUp, at: selPoint(col: c2, row: row))
+            pump(0.2)
+        }
+        func selClear() {
+            mouse(.leftMouseDown, at: selPoint(col: 70, row: 0))
+            mouse(.leftMouseUp, at: selPoint(col: 70, row: 0))
+            pump(0.1)
+        }
+        /// 整屏像素统计(整图一次性解码 —— 逐点 pixelAt 每次都重画整图,统计吃不消)
+        func selCount(_ tag: String, _ match: (Int, Int, Int) -> Bool) -> Int {
+            let path = "\(outPrefix)_sel_\(tag).png"
+            guard overlay.dumpFrame(to: path), let img = loadPNG(path) else { return -1 }
+            let w = img.width, h = img.height
+            var buf = [UInt8](repeating: 0, count: w * h * 4)
+            let info = CGBitmapInfo.byteOrder32Little.rawValue
+                | CGImageAlphaInfo.premultipliedFirst.rawValue
+            guard let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8,
+                                      bytesPerRow: w * 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: info) else { return -1 }
+            ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+            var n = 0, i = 0
+            while i < buf.count {
+                if match(Int(buf[i + 2]), Int(buf[i + 1]), Int(buf[i])) { n += 1 }
+                i += 4
+            }
+            return n
+        }
+        let isBlue = { (r: Int, g: Int, b: Int) in r < 60 && abs(g - 128) < 50 && b > 190 }
+        let isWhite = { (r: Int, g: Int, b: Int) in r > 200 && g > 200 && b > 200 }
+        let isRed = { (r: Int, g: Int, b: Int) in r > 180 && g < 90 && b < 90 }
+        // ① 自定义档选空白区 = 大片天蓝
+        selDrag(row: 10, 2, 32)
+        let blankBlue = selCount("custom_blank", isBlue)
+        selClear()
+        // ② 文字色未设:选中 M 行,白笔画仍在 + 底变蓝
+        selDrag(row: 7, 0, 16)
+        let textBlue = selCount("keep_fg", isBlue)
+        let textWhite = selCount("keep_fg_w", isWhite)
+        selClear()
+        // ③ 文字色设红:选中 M 行出现大片红笔画
+        selCfg.selectionTextColor = "#ff2000"
+        wc.applySettings(selCfg, fontSize: 14, cursorStyle: 0)
+        pump(0.3)
+        selDrag(row: 7, 0, 16)
+        let textRed = selCount("fg_override", isRed)
+        selClear()
+        // ④ 反色档回归:选空白区 = 前景白亮块,蓝色彻底消失
+        selCfg.selectionColorMode = 0
+        wc.applySettings(selCfg, fontSize: 14, cursorStyle: 0)
+        pump(0.3)
+        selDrag(row: 10, 2, 32)
+        let invWhite = selCount("inverse", isWhite)
+        let invBlue = selCount("inverse_b", isBlue)
+        selClear()
+        // 阈值:30 格选区 ≈ 30×cell 物理像素,大片判定取其零头;红笔画按字形
+        // 覆盖率估(16 个 M 的笔画像素远超 300);反色残蓝上限给光标/抗锯齿留余量
+        let blockPx = Int(CGFloat(selCell.w * selCell.h) * 30)
+        if blankBlue > blockPx / 5 && textBlue > 500 && textWhite > 500
+            && textRed > 300 && invWhite > blockPx / 5 && invBlue < 200 {
+            print("✓ 选区配色:自定义底色(\(blankBlue))/保留原文字色(蓝\(textBlue)+白\(textWhite))/统一文字色(红\(textRed))/反色回归(白\(invWhite),残蓝\(invBlue))")
+        } else {
+            print("✗ 选区配色异常 blankBlue=\(blankBlue) textBlue=\(textBlue) textWhite=\(textWhite) textRed=\(textRed) invWhite=\(invWhite) invBlue=\(invBlue) 期望块像素≈\(blockPx)")
+            selOK = false
+        }
+        wc.applySettings(crtCfg, fontSize: 14, cursorStyle: 0)   // 收尾回基线
+        pump(0.2)
+        snap("selection_colors")
+
         print("AUTO-DRIVE-DONE steps=\(step)")
-        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK && crtBGOK && animOK) ? 0 : 1
+        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK && crtBGOK && animOK && selOK) ? 0 : 1
     }
 
     // ---- 场景 21 的小工具:纯色 PNG 生成 / PNG 像素直读 ----

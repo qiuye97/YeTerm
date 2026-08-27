@@ -508,7 +508,16 @@ final class ContentRenderer {
             let w = cw * (wide ? 2 : 1)
             let attr = cd.attribute
             var (fg, bg) = AnsiColor.effective(attr: attr)
-            if let sr = selRange, sr.contains(col) { swap(&fg, &bg) }   // 选区反色(亮块黑字)
+            if let sr = selRange, sr.contains(col) {
+                // 选区配色(2026-08-27):自定义模式换底色,文字色未设则保留原色;
+                // 反色模式(缺省)= 前景/背景互换(亮块黑字,历史行为)
+                if let sel = AnsiColor.selectionOverride {
+                    bg = sel.bg
+                    fg = sel.fg ?? fg
+                } else {
+                    swap(&fg, &bg)
+                }
+            }
 
             if bg != AnsiColor.defaultBg {
                 cache.bg.append(QuadInstance(rectPx: .init(x, y, w, chh),

@@ -1371,6 +1371,16 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let newCrtFg = (crtOn && !classicDevice) ? cfg.crtTextFg() : nil
         if AnsiColor.crtFgOverride != newCrtFg { changed = true }
         AnsiColor.crtFgOverride = newCrtFg
+        // 选区配色(2026-08-27):自定义模式装覆盖,反色模式(缺省)nil。
+        // CRT/普通两种模式都吃,CRT 下照常被荧光染色/白热化(用户裁决);
+        // 变了同样要全量重建行缓存 —— 选区若正挂着,旧色会残留在行缓存里
+        let newSel = cfg.selectionColors()
+        switch (AnsiColor.selectionOverride, newSel) {
+        case (nil, nil): break
+        case let (old?, new?) where old.bg == new.bg && old.fg == new.fg: break
+        default: changed = true
+        }
+        AnsiColor.selectionOverride = newSel
         if changed {
             ov.invalidateContentCache()
         }

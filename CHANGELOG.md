@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.6] — 2026-08-27
+
+### Added
+
+- **Selection highlight colors are now configurable, per preset.** A new
+  "Selection Highlight" card on both color pages (CRT and plain mode)
+  offers two modes. *Inverse* (the default, and the previous behavior)
+  swaps foreground and background inside the selection — the classic
+  retro-terminal look, which is why selecting a blank area used to show a
+  block of the text color. *Custom* lets you pick a selection background
+  color, plus an optional selection text color: leave the text color unset
+  and selected characters keep their own colors (`ls` colors and syntax
+  highlighting survive selection, Terminal.app-style); set it and all
+  selected text uses that color. The setting travels with the preset, so
+  every theme can have its own selection style. In CRT mode the custom
+  colors go through phosphor tinting and overdrive like any other content
+  — on low-chroma monochrome themes only their brightness shows.
+
+---
+
 ## [1.3.5] — 2026-08-26
 
 ### Fixed

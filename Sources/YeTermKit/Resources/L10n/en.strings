@@ -163,6 +163,18 @@
 "当前:crterm 专属调色板(亮青=奶油白等荧光考据色)。修改任一色即成为自定义配色;色彩浓度低时 ANSI 色会被荧光染色。" = "Currently: the cool-retro-term signature palette (researched phosphor colors, e.g. bright cyan is a cream white). Changing any color makes it a custom palette; at low chroma the ANSI colors get tinted by the phosphor.";
 "当前:自定义 ANSI 表(经典配色主题自带官方色)。「还原专属调色板」回到 crterm 荧光考据色。" = "Currently: a custom ANSI table (classic color themes ship their official palettes). “Restore Signature Palette” goes back to the researched phosphor colors.";
 
+// ── Settings: selection highlight (both plain and CRT mode, 2026-08-27) ─────
+"选中高亮" = "Selection Highlight";
+"反色" = "Inverse";
+"自定义" = "Custom";
+"选中背景色" = "Selection Background";
+"选中文字颜色" = "Selection Text Color";
+"保留原色" = "Keep Original";
+"文字颜色未设置:选中时保留每个字符原本的颜色,只换底色。" = "Text color not set: selected characters keep their own colors — only the background changes.";
+"文字颜色已设置:选中范围内的文字统一用这个颜色。" = "Text color set: all text inside the selection uses this color.";
+"反色 = 选中处前景/背景互换,复古终端的经典行为。" = "Inverse swaps foreground and background inside the selection — the classic retro-terminal behavior.";
+"CRT 模式下选中颜色同样经过荧光染色与白热化;色彩浓度低的单色主题只体现明暗,选不出色相。" = "In CRT mode the selection colors also go through phosphor tinting and overdrive; on low-chroma monochrome themes only their brightness shows — hue can't survive.";
+
 // ── Settings: background image (both plain and CRT mode since v1.5.1) ───────
 "背景图片" = "Background Image";
 "选择图片/视频…" = "Choose Image/Video…";
