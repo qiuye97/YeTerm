@@ -322,7 +322,8 @@ final class ContentRenderer {
                 if let slot = atlas.slot(text: String(ch), wide: wide, bold: false, italic: false) {
                     glyphInstances.append(QuadInstance(rectPx: .init(x, y, cw * Float(w), chh),
                                                        uvRect: slot.uv,
-                                                       color: .init(fg, 1)))
+                                                       color: slot.isColor ? .init(1, 1, 1, 2)
+                                                                           : .init(fg, 1)))
                 }
                 col += w
             }
@@ -534,9 +535,12 @@ final class ContentRenderer {
                 if let slot = atlas.slot(text: String(chr), wide: wide,
                                          bold: attr.style.contains(.bold),
                                          italic: attr.style.contains(.italic)) {
+                    // 彩色字形(emoji,issue #1):alpha=2 哨兵让 shader 原色直出,
+                    // 不吃前景染色(选中/反色下 emoji 也保持彩色,Terminal.app 同款)
                     cache.glyph.append(QuadInstance(rectPx: .init(x, y, w, chh),
                                                     uvRect: slot.uv,
-                                                    color: .init(fg, 1)))
+                                                    color: slot.isColor ? .init(1, 1, 1, 2)
+                                                                        : .init(fg, 1)))
                 }
             }
 

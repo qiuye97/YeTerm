@@ -30,6 +30,13 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
 
     var onTerminated: ((TerminalPane) -> Void)?
     var onTitle: ((TerminalPane, String) -> Void)?
+    /// 终端网格(cols×rows)变化(2026-08-27「机壳切换后 claude code 标签白屏」
+    /// 修复):resize 是行缓存追踪的换血时刻 —— 缓冲行对象整批换新,逐行
+    /// generation 计数从头来,与旧缓存的计数**可能撞车**(都是小整数),撞上的
+    /// 行就永远不重建(mountActiveTab 早有同款论述:「脏行追踪跨不过这些事件」,
+    /// 但它只兜切标签,活动标签上的 resize 此前无人兜)。窗口控制器接此回调
+    /// 整幅置脏,resize 低频、全量重建一帧的成本可忽略
+    var onGridResized: ((TerminalPane) -> Void)?
 
     init(options: LaunchOptions, cwd: String? = nil) {
         let rect = NSRect(x: 0, y: 0, width: 480, height: 320)
@@ -88,7 +95,9 @@ final class TerminalPane: NSView, LocalProcessTerminalViewDelegate {
 
     // MARK: - LocalProcessTerminalViewDelegate
 
-    func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
+    func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
+        onGridResized?(self)
+    }
 
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         onTitle?(self, title)

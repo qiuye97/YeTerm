@@ -72,12 +72,19 @@ fragment float4 grid_bg_fragment(GridVSOut in [[stage_in]]) {
     return in.color;
 }
 
-// 字形:atlas 里是「白字形+alpha」,取 alpha 作 mask 乘前景色(启用 alpha 混合)
+// 字形:atlas 里是「白字形+alpha」,取 alpha 作 mask 乘前景色(启用 alpha 混合)。
+// 彩色字形(emoji,issue #1):CPU 侧用 alpha=2 哨兵标记 —— 图集里存的是
+// **预乘 alpha 的彩色位图**,直接原色输出(除回 alpha 还原成直通色,因为本管线
+// 的混合因子按直通 alpha 配:srcRGB×srcAlpha + dst×(1-srcAlpha))。
+// 拿它乘前景色只会剩下单色剪影,正是 issue 截图「emoji 只有轮廓」的根因
 fragment float4 grid_glyph_fragment(GridVSOut in [[stage_in]],
                                     texture2d<float> atlas [[texture(0)]]) {
     constexpr sampler s(address::clamp_to_edge, filter::nearest);
-    float a = atlas.sample(s, in.uv).a;
-    return float4(in.color.rgb, in.color.a * a);
+    float4 c = atlas.sample(s, in.uv);
+    if (in.color.a > 1.5) {
+        return float4(c.rgb / max(c.a, 0.0001), c.a);
+    }
+    return float4(in.color.rgb, in.color.a * c.a);
 }
 
 // 终端图片条带(v1.2 #4):RGBA 直贴(uv 全幅 0..1 采样整条带纹理;

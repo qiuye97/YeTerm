@@ -35,6 +35,9 @@ import simd
 final class GlyphAtlas {
     struct Slot {
         let uv: SIMD4<Float>     // atlas uv x,y,w,h
+        /// 彩色字形(emoji,2026-08-27 issue #1):图集里存的是彩色位图而非
+        /// 白色蒙版,shader 端要原色直出、不能拿 alpha 乘前景色(那样只剩剪影)
+        let isColor: Bool
     }
 
     private struct Key: Hashable {
@@ -233,6 +236,7 @@ final class GlyphAtlas {
 
         guard let ctx = context(wide: wide) else { return nil }
         ctx.clear(CGRect(x: 0, y: 0, width: w, height: h))
+        var isColor = false
 
         // 盒绘/块元素(U+2500–259F):程序化画满整格,跨行跨列天然连续(断口修复)
         if !BoxDrawing.draw(text: text, in: ctx, w: w, h: h) {
@@ -244,6 +248,10 @@ final class GlyphAtlas {
                 var m = fontMatrix
                 font = CTFontCreateCopyWithAttributes(fb, 0, &m, nil)
             }
+            // 彩色字形判定(2026-08-27 issue #1「emoji 只渲染轮廓」):emoji 回退到
+            // Apple Color Emoji(带 colorGlyphs trait 的位图字体),CTLineDraw 画进
+            // 画布的是彩色位图 —— 下游按"白色蒙版 × 前景色"处理就只剩单色剪影
+            isColor = CTFontGetSymbolicTraits(font).contains(.traitColorGlyphs)
 
             let attr = NSAttributedString(string: text, attributes: [
                 .font: font,
@@ -275,7 +283,28 @@ final class GlyphAtlas {
                 && (inkBounds.minX < -1.5 || inkBounds.maxX > availW + 1.5
                     || drawnMinY < -1.5 || drawnMaxY > availH + 1.5)
 
-            if Self.isPUAIcon(text) {
+            if isColor {
+                // emoji(2026-08-27 issue #1「渲染不清晰/不完全」的另一半):位图字形
+                // 没有轮廓路径,上面的 path bounds 量出来是空 → 走默认基线绘制,
+                // 超出 cell 的部分被裁掉。改按**像素墨迹**量(CTLineGetImageBounds
+                // 需要画布上下文),超格等比缩小、双轴居中 —— PUA 图标同款纪律;
+                // 目标高 = 大写字高 ×1.25(emoji 视觉上比大写字母略高才与文字协调)
+                ctx.textPosition = .zero
+                var ink = CTLineGetImageBounds(line, ctx)
+                if ink.isNull || ink.isInfinite || ink.width < 0.5 || ink.height < 0.5 {
+                    ink = CGRect(x: 0, y: 0, width: availW, height: availH)
+                }
+                let targetH = min(availH, capHeightPx * 1.25)
+                let fit = min(availW * 0.96 / ink.width, targetH / ink.height)
+                let centerY = descentPx + capHeightPx / 2
+                ctx.saveGState()
+                ctx.translateBy(x: (availW - fit * ink.width) / 2 - fit * ink.minX,
+                                y: centerY - fit * (ink.minY + ink.height / 2))
+                ctx.scaleBy(x: fit, y: fit)
+                ctx.textPosition = .zero
+                CTLineDraw(line, ctx)
+                ctx.restoreGState()
+            } else if Self.isPUAIcon(text) {
                 // PUA 图标(nerd font/p10k 的 /🔒/⏰ 等):墨迹经常比 cell 宽(被裁出
                 // 「遮挡」)或不居中 —— 量实际墨迹,超格则等比缩小,双轴居中(iTerm2 同款)
                 let ink = inkBounds
@@ -341,7 +370,8 @@ final class GlyphAtlas {
         let s = Slot(uv: SIMD4<Float>(Float(cursorX) / Float(atlasSize),
                                       Float(cursorY) / Float(atlasSize),
                                       Float(w) / Float(atlasSize),
-                                      Float(h) / Float(atlasSize)))
+                                      Float(h) / Float(atlasSize)),
+                     isColor: isColor)
         cursorX += w
         return s
     }

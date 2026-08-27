@@ -5,6 +5,38 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.7] — 2026-08-27
+
+### Fixed
+
+- **Emoji now render in full color** (GitHub issue #1). Emoji used to show up
+  as monochrome outlines: every glyph in the atlas was treated as a white
+  mask multiplied by the foreground color, which reduces Apple Color Emoji's
+  color bitmaps to silhouettes. Color glyphs are now detected at
+  rasterization time and passed through to the screen in their original
+  colors — including inside selections. Sizing is fixed too: bitmap glyphs
+  have no outline path, so the old ink-measurement returned nothing and
+  oversized emoji got cropped; they are now measured by pixel coverage and
+  scaled/centered into the cell like icon glyphs. In CRT mode emoji go
+  through phosphor tinting like any other content (unchanged policy).
+
+- **Switching from a frameless theme to a framed (bezel) theme no longer
+  blanks a tab running a full-screen TUI such as Claude Code.** The theme
+  switch triggers a relayout → pane resize → SIGWINCH → full TUI redraw
+  chain, and a resize is a blind spot for the dirty-row cache: the buffer's
+  lines are replaced wholesale and their per-line generation counters
+  restart, so a cached row whose counter happens to collide is never
+  rebuilt — switching tabs "fixed" it only because re-mounting a tab marks
+  everything dirty. Two defenses now close the gap at the source: every
+  terminal grid resize marks that pane fully dirty, and any settings
+  broadcast that changes the text-area geometry (bezel band, margins)
+  immediately re-pins the active tab's layout and repaints it whole — the
+  same three steps a manual tab switch performed. A new `--probe-caseband`
+  regression drives a real shell running a WINCH-redraw alternate-screen
+  TUI through the switch in both directions.
+
+---
+
 ## [1.3.6] — 2026-08-27
 
 ### Added

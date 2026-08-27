@@ -1426,6 +1426,52 @@ final class MetalOverlayView: MTKView {
         return (try? PNGWriter.write(img, to: path)) != nil
     }
 
+    /// 取证口(2026-08-27 机壳切换排查):导出**当前**合成纹理原样,**不**触发
+    /// performCapture —— dumpFrame/dumpComposite 都会强制重捕获,把「活画面
+    /// 卡死/内容消失」这类 bug 当场修好藏掉;活路径取证必须用这个口
+    func dumpCompositeAsIs(to path: String) -> Bool {
+        guard let src = sourceTexture, let img = renderer.readback(src) else { return false }
+        return (try? PNGWriter.write(img, to: path)) != nil
+    }
+
+    /// 自测:手动踩一次渲染心跳(= display link 的 draw 回调;探针窗口常被遮挡,
+    /// renderTick 的 occlusion guard 会早退 —— skipOcclusionCheck 让探针绕过它)
+    func debugRenderTick(skipOcclusionCheck: Bool = false) {
+        debugSkipOcclusion = skipOcclusionCheck
+        renderTick()
+        debugSkipOcclusion = false
+    }
+    private var debugSkipOcclusion = false
+
+    /// 取证口(2026-08-27 机壳切换排查):按**当前**合成纹理 + 当前 uniforms 出一帧
+    /// CRT pass(不 performCapture)—— 与用户此刻看到的活画面同源。附带打印
+    /// 内容落点参数,供逐帧比对
+    func dumpFrameAsIs(to path: String, tag: String = "") -> Bool {
+        guard let tv = focusedViewProvider?() ?? sources.first?.view,
+              let src = sourceTexture else { return false }
+        let dw = src.width, dh = src.height
+        var u = buildUniforms(tv: tv, dw: dw, dh: dh, now: CACurrentMediaTime(),
+                              forceBlinkOn: true)
+        u.powerOnProgress = 1
+        u.burnInLastUpdate = effects.map { $0.burnInLastUpdate } ?? 0
+        FileHandle.standardError.write(Data(
+            "[asis \(tag)] rect=\(focusedRectPx) cell=\(focusedCellPx) scale=\(u.contentScale) offset=\(u.contentOffset) inset=\(u.screenInset) frameOn=\(u.frameOn) src=\(dw)x\(dh)\n".utf8))
+        let black = effects?.blackTexture
+        let extras: [MTLTexture] = [
+            noiseTexture ?? black,
+            bloomTexture ?? black,
+            (u.burnIn > 0 ? effects?.currentBurnIn : nil) ?? black,
+            (u.bgImageOn > 0.5 ? plainBG?.texture : nil) ?? black,
+        ].compactMap { $0 }
+        guard let out = try? withUnsafeBytes(of: &u, { p in
+            try renderer.renderFullscreen(library: "CRT", fragment: "crt_fragment",
+                                          source: src, uniforms: p,
+                                          extraTextures: extras,
+                                          outWidth: dw, outHeight: dh)
+        }), let img = renderer.readback(out) else { return false }
+        return (try? PNGWriter.write(img, to: path)) != nil
+    }
+
     func dumpFrame(to path: String) -> Bool {
         guard let img = frameImage() else { return false }
         do {
@@ -1460,7 +1506,7 @@ final class MetalOverlayView: MTKView {
         guard let tv = focusedViewProvider?() ?? sources.first?.view,
               tv.window != nil,
               window?.isMiniaturized != true,
-              window?.occlusionState.contains(.visible) ?? true else { return }
+              debugSkipOcclusion || (window?.occlusionState.contains(.visible) ?? true) else { return }
 
         // IME 预编辑轮询兜底(事件推送为主)
         let preedit = currentPreedit(tv)

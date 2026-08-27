@@ -1762,8 +1762,32 @@ public enum AutoDrive {
         pump(0.2)
         snap("selection_colors")
 
+        // 场景 31(2026-08-27 GitHub issue #1「emoji 只渲染轮廓」):彩色字形直出。
+        // 修前 emoji 走「图集 alpha × 前景色」只剩白色剪影;修后 Apple Color Emoji
+        // 的彩色位图原色上屏(shader 按 alpha=2 哨兵分派)。普通模式直通 + 纯白
+        // 前景,屏上唯一的黄色只能来自 😀 的黄脸 —— 整屏统计黄像素
+        var emojiOK = true
+        step += 1
+        var emojiCfg = plainCfg
+        emojiCfg.plainTextColor = "#ffffff"
+        emojiCfg.plainBackgroundColor = "#000000"
+        wc.applySettings(emojiCfg, fontSize: 14, cursorStyle: 0)
+        pump(0.3)
+        tv.getTerminal().feed(text: "\u{1b}[2J\u{1b}[H😀😀😀😀😀😀😀😀 emoji")
+        pump(0.3)
+        let emojiYellow = selCount("emoji", { r, g, b in r > 200 && g > 140 && b < 90 })
+        if emojiYellow > 200 {
+            print("✓ emoji 彩色直出:黄脸像素 \(emojiYellow)")
+        } else {
+            print("✗ emoji 仍是剪影(黄像素 \(emojiYellow),期望 >200)")
+            emojiOK = false
+        }
+        wc.applySettings(crtCfg, fontSize: 14, cursorStyle: 0)   // 收尾回基线
+        pump(0.2)
+        snap("emoji_color")
+
         print("AUTO-DRIVE-DONE steps=\(step)")
-        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK && crtBGOK && animOK && selOK) ? 0 : 1
+        return (searchOK && linkOK && marksOK && bellOK && imageOK && pasteOK && bootOK && channelOK && degaussOK && exportOK && trioOK && pathOK && osdOK && plainOK && bgOK && hitOK && promptOK && sshOK && sharpOK && rateOK && wakeOK && crtBGOK && animOK && selOK && emojiOK) ? 0 : 1
     }
 
     // ---- 场景 21 的小工具:纯色 PNG 生成 / PNG 像素直读 ----

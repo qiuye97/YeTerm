@@ -472,6 +472,13 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             tv.onSelectionChanged = { [weak ov] in ov?.noteSelectionChanged() }
             tv.onMarkedTextChanged = { [weak ov] in ov?.refreshPreeditNow() }
         }
+        // 网格 resize → 整幅置脏(2026-08-27「机壳切换后 claude code 标签白屏」):
+        // resize 后缓冲行对象换血,行缓存的 generation 兜底可能撞车失效,claude
+        // 这类同步输出+整屏重画的 TUI 首当其冲。理由详见 TerminalPane.onGridResized
+        pane.onGridResized = { [weak self] p in
+            guard let self, let ov = self.overlay else { return }
+            ov.markAllDirty(view: p.terminalView)
+        }
         // 通知 + Visual Bell(v1.2 #5)
         pane.terminalView.onBell = { [weak self, weak pane] in
             guard let self, let pane else { return }
@@ -967,6 +974,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         // 普通终端模式(CRT 关)无机壳:固定小 padding(8 逻辑 px,普通终端惯例)
         let newInset = (cfg.crtEffectsEnabled ?? true) ? Self.inset(forMargin: cfg.margin) : 8
+        let bandBefore = root.caseBandActive
+        let insetBefore = root.marginInset
         if newInset != root.marginInset {
             root.marginInset = newInset
             root.needsLayout = true
@@ -976,6 +985,21 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // 标签栏样式跟着机壳/字体走(uniforms 刚更新完,判定才准)
         crtBarStyle = cfg.crtTabBarStyle ?? 0
         refreshTabBar()
+        // 文字区几何换血兜底(2026-08-27 用户实测「无机壳主题切有机壳主题,正跑
+        // claude code 的标签内容全消失,切标签再切回才恢复」):机壳带/留白翻转
+        // 会连环触发 布局→pane resize→SIGWINCH→TUI 整屏重画,行缓存追踪跨这种
+        // 事件链存在死角(对象换血 + generation 撞车),用户切标签之所以能救,
+        // 靠的是 mountActiveTab 三件套(树钉回 splitHost 实际尺寸+整幅置脏+重捕获)。
+        // 同样的兜底在广播现场就地做掉;只在几何输入真变了才走,拖滑杆调色零影响
+        if root.caseBandActive != bandBefore || root.marginInset != insetBefore {
+            root.needsLayout = true
+            root.layoutSubtreeIfNeeded()   // 让位立即生效,pane 此刻就是最终尺寸
+            if let tree = activeTab?.rootView, tree.superview === splitHost,
+               splitHost.bounds.width > 1, tree.frame != splitHost.bounds {
+                tree.frame = splitHost.bounds   // autoresize 链过 0 尺寸的垃圾 frame 纠正
+            }
+            activePanes.forEach { overlay?.markAllDirty(view: $0.terminalView) }
+        }
     }
 
     /// windowOpacity → 容器透明度(cool-retro-term 语义:0~1 映射 0.7~1.0)

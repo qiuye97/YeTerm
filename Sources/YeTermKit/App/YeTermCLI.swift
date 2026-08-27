@@ -115,6 +115,15 @@ public enum YeTermCLI {
             return SelectionProbe.run(options: options)
         }
 
+        if args.contains("--probe-caseband") {
+            var options = LaunchOptions()
+            if let cfg = resolveConfig(args) {
+                options.config = cfg
+                if let f = cfg.resolvedFontName { options.fontName = f }
+            }
+            return CaseBandProbe.run(options: options)
+        }
+
         if args.contains("--probe-windows") {
             var options = LaunchOptions()
             if let cfg = resolveConfig(args) {
