@@ -5,7 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
-## [1.3.4] — 2026-08-26
+## [1.3.5] — 2026-08-26
+
+### Fixed
+
+- **The OSD panel's selection highlight no longer stutters while holding
+  ↑/↓.** Rendering is event-driven: whoever changes the picture must mark the
+  compositor dirty, or the change waits for the 500 ms fallback capture. The
+  OSD's key handler redrew its own canvas but never nudged the compositor, so
+  the highlight moved at most twice a second under key repeat — value
+  adjustment (←/→) only felt fine by accident, because writing the real
+  setting triggers a repaint through the settings broadcast. OSD keystrokes
+  now mark the compositor dirty the same way the server picker's always have
+  (with the lighter repaint, which skips needlessly invalidating every
+  pane's row cache).
 
 ### Fixed
 

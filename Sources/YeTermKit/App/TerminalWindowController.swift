@@ -1114,6 +1114,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let osdBack = focusedPane          // ← 抢焦点之前先锁定
         osdTarget = osdBack
         osdKeyView?.osd = osd
+        // 按键即置脏(高亮切换卡顿勘差)。轻量 scheduleRepaint 足矣:OSD 画布
+        // 每次重合成本来就会重渲染,不必像 scheduleCapture 那样顺带作废
+        // 全部 pane 的行缓存(那是整屏重建,纯浪费)
+        osdKeyView?.onActivity = { [weak self] in self?.overlay?.scheduleRepaint() }
         osd.onAutoHide = { [weak self] in
             self?.overlay?.scheduleCapture()
             self?.window?.makeFirstResponder(osdBack?.terminalView)

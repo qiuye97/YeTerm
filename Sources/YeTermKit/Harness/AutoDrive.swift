@@ -679,7 +679,12 @@ public enum AutoDrive {
                 kv.keyDown(with: ev)
             }
         }
-        osdKey(125)   // ↓ 到 CONTRAST
+        // 置脏契约(2026-08-26 用户实测「按住 ↑↓ 切换高亮卡顿」):方向键必须
+        // **当场**把合成层置脏,否则高亮更新只能蹭 500ms 兜底捕获。断言标志
+        // 本身而非出帧 —— dumpFrame 会强制重合成,测出来永远是假绿
+        overlay.clearContentDirtyForTesting()
+        osdKey(125)   // ↓ 到 CONTRAST(顺带充当高亮切换的置脏检验)
+        let osdKeyDirty = overlay.contentDirtyForTesting
         osdKey(124)   // → +0.05
         pump(0.3)
         snap("osd_panel")
@@ -689,10 +694,10 @@ public enum AutoDrive {
         pump(0.3)
         let visibleAfter = wc.overlayForTesting?.osdController?.visible ?? true
         let focusBack2 = window.firstResponder === tv
-        if visibleMid && adjusted && !visibleAfter && focusBack2 {
-            print("✓ OSD:呼出 + 键盘调值直连 + Esc 关闭还焦")
+        if visibleMid && adjusted && !visibleAfter && focusBack2 && osdKeyDirty {
+            print("✓ OSD:呼出 + 方向键即置脏 + 键盘调值直连 + Esc 关闭还焦")
         } else {
-            print("✗ OSD 异常 vis=\(visibleMid) adj=\(adjusted) after=\(visibleAfter) focus=\(focusBack2)")
+            print("✗ OSD 异常 vis=\(visibleMid) adj=\(adjusted) after=\(visibleAfter) focus=\(focusBack2) dirty=\(osdKeyDirty)")
             osdOK = false
         }
 

@@ -335,6 +335,11 @@ final class MetalOverlayView: MTKView {
          (Int(drawableSize.width.rounded()), Int(drawableSize.height.rounded())))
     }
 
+    /// 自测口(2026-08-26 OSD ↑↓ 高亮卡顿回归):置脏标志直读/复位。
+    /// dumpFrame 自己会强制重合成,测不了「按键是否当场置脏」—— 只能断言契约本身
+    var contentDirtyForTesting: Bool { contentDirty }
+    func clearContentDirtyForTesting() { contentDirty = false }
+
     /// 自测口:焦点 pane 在合成画面里的落点(必须落在整数物理像素上)
     var focusedPaneOriginForTesting: CGPoint { focusedRectPx.origin }
 

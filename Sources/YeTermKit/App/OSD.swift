@@ -142,11 +142,19 @@ final class OSDController {
 final class OSDKeyView: NSView {
     weak var osd: OSDController?
     var onDismiss: (() -> Void)?
+    /// 每次按键后回调(2026-08-26 用户实测「按住 ↑↓ 切换高亮卡顿」勘差):
+    /// 渲染是事件驱动的,OSD 画布自己重画了不等于上屏 —— 不主动踢一脚重合成,
+    /// 高亮更新只能蹭 500ms 兜底捕获,按住方向键时每秒最多动两格。
+    /// ←→ 调值此前不卡纯属碰巧:值直连 SettingsModel,设置广播 applySettings
+    /// 末尾替它踢了。这是 ServerPickerKeyView.onActivity 的同款纪律。
+    var onActivity: (() -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        if osd?.handleKey(event) != true {
+        if osd?.handleKey(event) == true {
+            onActivity?()
+        } else {
             onDismiss?()
         }
     }
