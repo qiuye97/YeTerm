@@ -104,6 +104,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         private(set) var crtBarRect: CGRect?
         /// 盒绘条被点击(参数 = 条内 x 偏移,控制器换算成列→标签)
         var onTabBarClick: ((CGFloat) -> Void)?
+        /// 盒绘条被鼠标中键点击 = 关那页(2026-08-28 用户需求,浏览器惯例)
+        var onTabBarMiddleClick: ((CGFloat) -> Void)?
         /// 盒绘条悬浮(2026-08-07:悬浮浮 x/浅底,与玻璃条同构;nil = 移出条外)
         var onTabBarHover: ((CGFloat?) -> Void)?
         private var barTrackingArea: NSTrackingArea?
@@ -160,6 +162,19 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 return
             }
             super.mouseDown(with: event)
+        }
+
+        // 【学】otherMouseDown = 左右键以外的鼠标键按下(中键 buttonNumber==2)。
+        //      AppKit 把三类按键分成 mouse/rightMouse/otherMouse 三组回调。
+        override func otherMouseDown(with event: NSEvent) {
+            if event.buttonNumber == 2, let r = crtBarRect {
+                let p = contentPoint(event)
+                if r.contains(p) {
+                    onTabBarMiddleClick?(p.x - r.minX)
+                    return
+                }
+            }
+            super.otherMouseDown(with: event)
         }
 
         override func layout() {
@@ -433,6 +448,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
          (overlay?.uniforms.frameOn ?? 0) > 0.5)
     }
     var glassTabBarVisibleForTesting: Bool { glassBarHost?.isHidden == false }
+    /// 盒绘条中键命中自测口(2026-08-28 tab 中键关闭;x = 条内偏移,逻辑点)
+    func middleClickTabBarForTesting(atX x: CGFloat) { root.onTabBarMiddleClick?(x) }
+    /// 活动标签树根自测口(扁平化断言用)
+    var activeRootViewForTesting: NSView? { activeTab?.rootView }
     /// 几何取证(2026-08-07 重影排查)
     var tabBarGeometryForTesting: String {
         let pane = activePanes.first.map { $0.terminalView.convert($0.terminalView.bounds, to: overlay!) }
@@ -604,9 +623,26 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         overlay?.scheduleCapture()
     }
 
+    /// 每个标签的分屏数量上限(2026-08-28 用户裁决:按住 ⌘D 连发曾瞬间分出
+    /// 大量 pane,深嵌套 NSSplitView 树在约束更新周期里抛 NSException 直接
+    /// 崩溃 —— 桌面 bugreport.txt 留档。10 个已远超单块屏幕的实际可用密度)
+    static let maxPanesPerTab = 10
+    /// 分屏后单侧的最小可用宽/高(逻辑点;再小连一列提示符都摆不下)
+    static let minPaneSpan: CGFloat = 80
+
     /// 分屏 → Split(⌘D 左右 / ⇧⌘D 上下)
-    @objc func splitRightAction(_ sender: Any?) { split(vertical: true) }
-    @objc func splitDownAction(_ sender: Any?) { split(vertical: false) }
+    @objc func splitRightAction(_ sender: Any?) { splitFromMenu(vertical: true) }
+    @objc func splitDownAction(_ sender: Any?) { splitFromMenu(vertical: false) }
+
+    /// 菜单/快捷键入口:按住 ⌘D 不放的 key repeat 只认第一下(2026-08-28
+    /// 用户裁决)。菜单快捷键跟着系统按键重复连发,一秒十几刀是卡顿+崩溃的
+    /// 直接来源;鼠标点菜单时 currentEvent 不是 keyDown,不受影响。
+    /// 【学】isARepeat 只对键盘事件有意义(其他事件类型上取它会抛异常),
+    ///      所以必须先查 type == .keyDown 再问
+    private func splitFromMenu(vertical: Bool) {
+        if let e = NSApp.currentEvent, e.type == .keyDown, e.isARepeat { return }
+        split(vertical: vertical)
+    }
 
     /// 分屏 → 下一个分屏(⌘])
     @objc func focusNextPaneAction(_ sender: Any?) {
@@ -623,7 +659,55 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private func split(vertical: Bool, from source: TerminalPane? = nil) -> TerminalPane? {
         guard let target = source ?? focusedPane, let tab = tabOf(target),
               let host = target.superview else { return nil }
+        // 上限闸(2026-08-28 崩溃防护):到顶 beep 拒绝,菜单动作失败的系统惯例
+        guard tab.panes.count < Self.maxPanesPerTab else {
+            NSSound.beep()
+            return nil
+        }
+        // 最小尺寸闸(2026-08-28):对半后任一侧小于 80pt 就拒绝 —— 逮着同一个
+        // 焦点连刀是指数变窄的(473→236→118→59…),几刀后 pane 只剩几个点宽,
+        // 毫无可用性还在助推深树;80pt ≈ 一列提示符的底线
+        let span = vertical ? target.bounds.width : target.bounds.height
+        guard (span - 1) / 2 >= Self.minPaneSpan else {
+            NSSound.beep()
+            return nil
+        }
         let newPane = makePane(into: tab)
+
+        // 同方向扁平化(2026-08-28 分屏优化):在同向 NSSplitView 里继续
+        // 同向分屏时,不再套一层新 NSSplitView,新 pane 直接插到 target 旁边。
+        // 连续 ⌘D 从「一刀一层」的深嵌套链变成一个多子视图的平树 —— 深嵌套
+        // 约束树正是崩溃报告的病灶,平树同时让分割线跨 pane 对齐(tmux 观感)
+        if let parentSplit = host as? NSSplitView, parentSplit.isVertical == vertical,
+           let index = parentSplit.arrangedSubviews.firstIndex(of: target) {
+            // 期望几何先记账:target 现有空间对半(扣一条分割线),其余 pane 不动
+            var desired: [ObjectIdentifier: CGFloat] = [:]
+            for sub in parentSplit.arrangedSubviews {
+                desired[ObjectIdentifier(sub)] = vertical ? sub.frame.width : sub.frame.height
+            }
+            let half = max(((desired[ObjectIdentifier(target)] ?? 0)
+                                - parentSplit.dividerThickness) / 2, 0)
+            desired[ObjectIdentifier(target)] = half
+            desired[ObjectIdentifier(newPane)] = half
+            newPane.frame = target.frame   // 播种非零 frame(0 尺寸=collapsed 教训)
+            parentSplit.insertArrangedSubview(newPane, at: index + 1)
+            updatePaneInsets()
+            // 布局定型后按记账逐条设分割线(插入的自动 tiling 可能挪动全排,
+            // 只设新刀那一条不够;setPosition 语义 = 距起点的累计距离)
+            DispatchQueue.main.async {
+                var acc: CGFloat = 0
+                let subs = parentSplit.arrangedSubviews
+                for (i, sub) in subs.enumerated() where i < subs.count - 1 {
+                    acc += desired[ObjectIdentifier(sub)]
+                        ?? (vertical ? sub.frame.width : sub.frame.height)
+                    parentSplit.setPosition(acc, ofDividerAt: i)
+                    acc += parentSplit.dividerThickness
+                }
+                self.window?.makeFirstResponder(newPane.terminalView)
+                self.overlay?.scheduleCapture()
+            }
+            return newPane
+        }
 
         let sv = NSSplitView(frame: target.frame)
         sv.isVertical = vertical
@@ -654,6 +738,37 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             self.overlay?.scheduleCapture()
         }
         return newPane
+    }
+
+    /// 把分屏树的几何逐层钉到给定 frame(buildTree「播种」的运行时版):
+    /// 分割维度按子视图现有尺寸**保比例**重分(用户拖过的分割线不丢),
+    /// 非分割维度铺满 —— 专治「树摘下重挂后子视图钉着中间态 0 尺寸」
+    /// (0 尺寸 = collapsed 吸收态,光设树根 frame 救不回,恢复压叠根修同款教训)。
+    /// 比例已一致时逐层 setFrame 同值 = 无操作,重复调用零成本。
+    /// 【学】递归遍历视图树,类比前端递归处理嵌套组件;NSSplitView isFlipped
+    ///      = true(y 向下),横切分支从顶往下顺序摆即可。
+    private func normalizeSplitTree(_ view: NSView, frame: CGRect) {
+        if view.frame != frame { view.frame = frame }
+        guard let sv = view as? NSSplitView else { return }
+        let subs = sv.arrangedSubviews
+        guard !subs.isEmpty else { return }
+        // 0 尺寸子视图兜底计 1(全 0 时退化为均分,不做除零)
+        let spans = subs.map { max(sv.isVertical ? $0.frame.width : $0.frame.height, 1) }
+        let totalSpan = spans.reduce(0, +)
+        let avail = max((sv.isVertical ? frame.width : frame.height)
+                            - sv.dividerThickness * CGFloat(subs.count - 1), 0)
+        var offset: CGFloat = 0   // 已分配 span 的累计(不含分割线)
+        for (i, sub) in subs.enumerated() {
+            // 末子视图吃掉舍入残差,保证末端贴边
+            let span = (i == subs.count - 1) ? max(avail - offset, 0)
+                                             : (avail * spans[i] / totalSpan).rounded()
+            let pos = offset + sv.dividerThickness * CGFloat(i)
+            let f = sv.isVertical
+                ? CGRect(x: pos, y: 0, width: span, height: frame.height)
+                : CGRect(x: 0, y: pos, width: frame.width, height: span)
+            normalizeSplitTree(sub, frame: f)
+            offset += span
+        }
     }
 
     /// 分屏内边距:多 pane 时字符与荧光分割线之间留白;单 pane 归零。
@@ -691,12 +806,21 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         overlay?.detach(pane.terminalView)
         tab.panes.removeAll { $0 === pane }
-        if tab.lastFocused === pane { tab.lastFocused = nil }
+        // 接位者 = 吃掉死者空间的邻居 pane(2026-08-28 分屏优化:此前焦点一律
+        // 跳回 panes.first,关右侧 pane 焦点却飞去最左屏,用户实测反直觉)
+        var successor: TerminalPane?
         if let sv = pane.superview as? NSSplitView {
+            let removedIndex = sv.arrangedSubviews.firstIndex(of: pane) ?? 0
             sv.removeArrangedSubview(pane)
             pane.removeFromSuperview()
+            // 扁平树(≥2 幸存):邻居 = 原位(或末位)的子视图;塌缩分支下面另算
+            let remaining = sv.arrangedSubviews
+            if remaining.count > 1 {
+                successor = firstLeafPane(of: remaining[min(removedIndex, remaining.count - 1)])
+            }
             if sv.arrangedSubviews.count == 1 {
                 let survivor = sv.arrangedSubviews[0]
+                successor = firstLeafPane(of: survivor)   // 塌缩:接位者=幸存侧
                 sv.removeArrangedSubview(survivor)
                 survivor.removeFromSuperview()
                 if let parentSplit = sv.superview as? NSSplitView,
@@ -708,10 +832,22 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                     // sv 是这个标签的树根(活动标签挂在 splitHost;后台标签
                     // superview 为 nil,量不到 —— 统一按"幸存者接任树根"处理)
                     sv.removeFromSuperview()
+                    // ⚠️ 接任树根的幸存者必须回到 frame/autoresize 世界(2026-08-28
+                    // 用户实测「4 分屏关 #4 再关 #1 → 内容全消失,窗底剩半截光标」
+                    // 的根修):约束世代的 NSSplitView 收编 arranged subview 时把它的
+                    // translatesAutoresizingMaskIntoConstraints 设成 false;幸存者摘
+                    // 出来挂到 splitHost 后若还是 false,而它自己是 NSSplitView(会给
+                    // 子视图建约束、把自己拉进约束引擎),自身却无任何约束 → 下一轮
+                    // layout 被解算成 **0 高**(探针取证:钉正后一拍变 946×0),
+                    // 且 0 尺寸即 collapsed 吸收态,内容全灭。幸存者是普通 pane 时
+                    // 不参与约束、引擎不碰它 —— 所以旧代码只在「幸存者=NSSplitView」
+                    // 时翻车,用户"再 ⌃D 一次恢复"正是塌缩到单 pane 的那一刻
+                    survivor.translatesAutoresizingMaskIntoConstraints = true
                     survivor.autoresizingMask = [.width, .height]
                     tab.rootView = survivor
                     if tab === activeTab {
-                        survivor.frame = splitHost.bounds
+                        // 整棵树几何逐层钉正(buildTree 播种的运行时版,保险丝)
+                        normalizeSplitTree(survivor, frame: splitHost.bounds)
                         splitHost.addSubview(survivor)
                     }
                 }
@@ -719,11 +855,21 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         } else {
             pane.removeFromSuperview()
         }
+        if tab.lastFocused === pane { tab.lastFocused = successor }
         if tab === activeTab {
-            window?.makeFirstResponder(activePanes.first?.terminalView)
+            window?.makeFirstResponder((successor ?? activePanes.first)?.terminalView)
             updatePaneInsets()
         }
         overlay?.scheduleCapture()
+    }
+
+    /// 分屏树的第一个叶 pane(焦点接位/兜底用)
+    private func firstLeafPane(of view: NSView) -> TerminalPane? {
+        if let p = view as? TerminalPane { return p }
+        for sub in view.subviews {
+            if let p = firstLeafPane(of: sub) { return p }
+        }
+        return nil
     }
 
     // MARK: - 标签操作(2026-08-06 窗口内多标签)
@@ -785,7 +931,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private func mountActiveTab() {
         guard let tab = activeTab else { return }
         if let tree = tab.rootView, tree.superview !== splitHost {
-            tree.frame = splitHost.bounds
+            // 连环关屏根修配套(2026-08-28):后台标签的树同样经历摘挂 ——
+            // 树根若曾是别的 NSSplitView 的 arranged subview(塌缩接位),
+            // translates 已被设 false,挂回 frame 世界前必须复原,否则约束
+            // 引擎会把它解算成 0 高;顺手整树钉正(0 尺寸中间态唤不醒)
+            tree.translatesAutoresizingMaskIntoConstraints = true
+            normalizeSplitTree(tree, frame: splitHost.bounds)
             tree.autoresizingMask = [.width, .height]
             splitHost.addSubview(tree)
         }
@@ -859,6 +1010,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 } else {
                     self.selectTab(hit.tab)
                 }
+            }
+            // 中键点格 = 关那页(2026-08-28 用户需求;命中沿用悬浮的列→标签换算)
+            root.onTabBarMiddleClick = { [weak self] x in
+                guard let self, let strip = self.tabStrip,
+                      let idx = strip.tabIndex(atColumn: Int(x / cellWpt)) else { return }
+                self.closeTab(at: idx)
             }
             // 悬浮(2026-08-07,与玻璃条同构):换格才重排(字符画布重 feed 很便宜,
             // 但没必要每次 mouseMoved 都来一趟)

@@ -360,6 +360,43 @@ enum GlassTabBar {
     }
 }
 
+/// 中键捕手(2026-08-28 用户需求「tab 中键关闭」):SwiftUI 没有中键手势,
+/// 用一层透明 AppKit 覆盖视图接。关键在 hitTest:只在**正在分发中键事件**时
+/// 认领命中,其余时刻(左键点击/悬浮移动)装作不存在 —— SwiftUI 的
+/// onTapGesture/onHover 照常穿透,互不打扰。
+/// 【学】NSViewRepresentable = 把 AppKit 视图嵌进 SwiftUI 的桥(NSHostingView
+///      的反方向);hitTest 是 AppKit 事件分发的"谁来接"问询,返回 nil = 穿透。
+private struct MiddleClickCatcher: NSViewRepresentable {
+    let onMiddleClick: () -> Void
+
+    final class CatcherView: NSView {
+        var onMiddleClick: (() -> Void)?
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard let e = NSApp.currentEvent,
+                  e.type == .otherMouseDown || e.type == .otherMouseUp
+                      || e.type == .otherMouseDragged else { return nil }
+            return super.hitTest(point)
+        }
+        override func otherMouseDown(with event: NSEvent) {
+            if event.buttonNumber == 2 {
+                onMiddleClick?()
+            } else {
+                super.otherMouseDown(with: event)
+            }
+        }
+    }
+
+    func makeNSView(context: Context) -> CatcherView {
+        let v = CatcherView()
+        v.onMiddleClick = onMiddleClick
+        return v
+    }
+
+    func updateNSView(_ v: CatcherView, context: Context) {
+        v.onMiddleClick = onMiddleClick
+    }
+}
+
 /// 参考图(Terminal.app 26 风格)逐项对齐:整条深色圆角底、各标签等宽、
 /// 「标题 + ⌘N 角标」、竖线分隔、选中标签 = 亮色胶囊、右端圆形 + 号
 private struct GlassTabBarView: View {
@@ -440,6 +477,7 @@ private struct GlassTabBarView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { onSelect(idx) }
+        .overlay(MiddleClickCatcher { onClose(idx) })   // 中键关标签(2026-08-28)
         .onHover { inside in
             if inside {
                 hovered = idx

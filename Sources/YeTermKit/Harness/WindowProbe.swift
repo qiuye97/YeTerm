@@ -313,6 +313,193 @@ public enum WindowProbe {
         raceWC.window?.close()
         pump(0.5)
 
+        // ---- 连环关 pane 回归(2026-08-28 用户实测「⌘D×3 成 4 屏,关 #4 再关 #1
+        // → 终端内容全部消失,窗底剩半截光标,再 ⌃D 才恢复」)----
+        // 手势复刻:⌘D 每次劈开焦点 pane 且焦点跟去新 pane → 全右劈得
+        // sv1[p1, sv2[p2, sv3[p3, p4]]];关 #4 是「幸存者=pane」塌缩(旧探针
+        // 已覆盖),关 #1 走的是**树根塌缩、幸存者=NSSplitView 接任树根**分支
+        // (此前探针从没踩过)。断言分两层:几何(pane 铺满互不压叠)+
+        // **活路径**像素(debugRenderTick + dumpCompositeAsIs,不强制重捕获 ——
+        // dumpFrame 会 performCapture 把「活画面卡死」类 bug 当场修好藏掉)。
+        /// **活路径**像素统计(debugRenderTick + dumpCompositeAsIs,不强制重捕获
+        /// —— dumpFrame 会 performCapture 把「活画面卡死」类 bug 当场修好藏掉)。
+        /// 返回 (左/上半, 右/下半) 亮像素数;axis: true=左右分,false=上下分
+        func liveHalves(_ wc: TerminalWindowController, tag: String,
+                        splitLeftRight: Bool) -> (a: Int, b: Int) {
+            guard let ov = wc.overlayForTesting else { return (-1, -1) }
+            var t = 0.0
+            while t < 1.5 {
+                ov.debugRenderTick(skipOcclusionCheck: true)
+                pump(0.05)
+                t += 0.05
+            }
+            let compPath = NSTemporaryDirectory() + "yeterm-window-probe-\(tag).png"
+            guard ov.dumpCompositeAsIs(to: compPath),
+                  let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: compPath) as CFURL, nil),
+                  let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else { return (-1, -1) }
+            let w = img.width, h = img.height
+            var buf = [UInt8](repeating: 0, count: w * h * 4)
+            let info = CGBitmapInfo.byteOrder32Little.rawValue
+                | CGImageAlphaInfo.premultipliedFirst.rawValue
+            guard let cg = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8,
+                                     bytesPerRow: w * 4,
+                                     space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                     bitmapInfo: info) else { return (-1, -1) }
+            cg.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+            var a = 0, b = 0
+            for y in 0..<h {
+                for x in 0..<w {
+                    let i = (y * w + x) * 4
+                    if Int(buf[i]) + Int(buf[i + 1]) + Int(buf[i + 2]) > 350 {
+                        if splitLeftRight ? (x < w / 2) : (y < h / 2) { a += 1 } else { b += 1 }
+                    }
+                }
+            }
+            print("  [\(tag)] 活帧 lit=(\(a), \(b)) 帧=\(compPath)")
+            return (a, b)
+        }
+        func paneRectsSane(_ wc: TerminalWindowController, name: String) {
+            let rects = wc.panes.map { $0.convert($0.bounds, to: nil) }
+            check("\(name):pane 几何无退化",
+                  rects.allSatisfy { $0.width > 50 && $0.height > 50 },
+                  detail: rects.map { "\(Int($0.width))x\(Int($0.height))" }.joined(separator: " | "))
+            var overlap = false
+            for i in 0..<rects.count {
+                for j in (i + 1)..<rects.count {
+                    let inter = rects[i].intersection(rects[j])
+                    if inter.width > 1, inter.height > 1 { overlap = true }
+                }
+            }
+            check("\(name):pane 互不压叠", !overlap)
+        }
+
+        // ---- 连环关 pane 回归 A:用户原手势(2026-08-28 实测「⌘D×3 成 4 屏,
+        // 关 #4 再关 #1 → 内容全消失,窗底剩半截光标」)。同方向扁平化后
+        // ⌘D×3 = 一个 4 子视图的平树,顺带断言扁平化与焦点接位新行为 ----
+        let chainWC = delegate.newWindowForTesting()
+        pump(1.0)
+        for _ in 0..<3 {
+            chainWC.splitRightAction(nil)
+            pump(0.6)
+        }
+        check("连环A:⌘D×3 后 4 pane", chainWC.panes.count == 4,
+              detail: "panes=\(chainWC.panes.count)")
+        // 扁平化(2026-08-28 分屏优化):同向连续分屏不再一刀一层嵌套,
+        // 树根就是一个 4 子视图的 NSSplitView(深嵌套约束树 = 崩溃报告病灶)
+        let chainRoot = chainWC.activeRootViewForTesting as? NSSplitView
+        check("连环A:同向分屏扁平化(树根 4 子视图)",
+              chainRoot?.arrangedSubviews.count == 4,
+              detail: "subs=\(chainRoot?.arrangedSubviews.count ?? -1)")
+        check("连环A:焦点跟随到 #4", chainWC.focusedPane === chainWC.panes.last)
+        // 最小尺寸闸(2026-08-28):逮着焦点连刀是指数变窄的,第 4 刀要切的
+        // pane 只剩 ~118pt,对半 59 < 80 必被拒 —— 2pt 宽 pane 时代的回归
+        chainWC.splitRightAction(nil)
+        pump(0.4)
+        check("连环A:第 4 刀被最小尺寸闸拦下", chainWC.panes.count == 4,
+              detail: "panes=\(chainWC.panes.count) 最窄=\(Int(chainWC.panes.map { $0.bounds.width }.min() ?? 0))pt")
+        // ⌃D 关 #4(交互 zsh 只认 exit;⌃D=EOF 同义)→ 焦点应落邻居 #3,
+        // 不再跳回 #1(旧行为 panes.first,用户实测反直觉)
+        chainWC.panes.last?.terminalView.send(txt: "exit\n")
+        pump(1.5)
+        check("连环A:关 #4 后 3 pane", chainWC.panes.count == 3,
+              detail: "panes=\(chainWC.panes.count)")
+        check("连环A:关 #4 后焦点落邻居 #3",
+              chainWC.focusedPane === chainWC.panes.last,
+              detail: "焦点=#\((chainWC.panes.firstIndex { $0 === chainWC.focusedPane } ?? -2) + 1)")
+        chainWC.panes.first?.terminalView.send(txt: "exit\n")
+        pump(1.5)
+        check("连环A:关 #1 后 2 pane", chainWC.panes.count == 2,
+              detail: "panes=\(chainWC.panes.count)")
+        paneRectsSane(chainWC, name: "连环A")
+        check("连环A:合成布局含 2 个 pane",
+              chainWC.overlayForTesting?.layoutProvider?().panes.count == 2,
+              detail: "panes=\(chainWC.overlayForTesting?.layoutProvider?().panes.count ?? -1)")
+        let halvesA = liveHalves(chainWC, tag: "chainA", splitLeftRight: true)
+        check("连环A:活画面左半有文字", halvesA.a > 300, detail: "lit=\(halvesA.a)")
+        check("连环A:活画面右半有文字", halvesA.b > 300, detail: "lit=\(halvesA.b)")
+        chainWC.window?.close()
+        pump(0.5)
+
+        // ---- 连环关 pane 回归 B:混合方向逼出**树根塌缩、幸存者=NSSplitView
+        // 接任树根**分支(原 bug 病灶:约束世代 NSSplitView 收编 arranged
+        // subview 时设 translates=false,幸存者摘出重挂后被约束引擎解算成
+        // 0 高 → 内容全灭;扁平化后纯同向手势不再走这支,必须专门钉住)----
+        let chainB = delegate.newWindowForTesting()
+        pump(1.0)
+        chainB.splitRightAction(nil)   // sv1[p1, p2]
+        pump(0.6)
+        chainB.splitDownAction(nil)    // sv1[p1, sv2[p2, p3]]
+        pump(0.6)
+        check("连环B:⌘D+⇧⌘D 后 3 pane", chainB.panes.count == 3,
+              detail: "panes=\(chainB.panes.count)")
+        chainB.panes.first?.terminalView.send(txt: "exit\n")   // 关 #1 → sv2 接任树根
+        pump(1.5)
+        check("连环B:关 #1 后 2 pane", chainB.panes.count == 2,
+              detail: "panes=\(chainB.panes.count)")
+        check("连环B:幸存 NSSplitView 接任树根",
+              chainB.activeRootViewForTesting is NSSplitView)
+        paneRectsSane(chainB, name: "连环B")
+        let halvesB = liveHalves(chainB, tag: "chainB", splitLeftRight: false)
+        check("连环B:活画面上半有文字", halvesB.a > 300, detail: "lit=\(halvesB.a)")
+        check("连环B:活画面下半有文字", halvesB.b > 300, detail: "lit=\(halvesB.b)")
+
+        // ---- 分屏上限(2026-08-28 用户裁决 10;按住 ⌘D 连发曾深嵌套崩溃)----
+        // 每刀切**面积最大**的 pane、按形状选方向(实际用户把屏幕铺成网格的
+        // 合理手势;逮着同一焦点连刀会更早撞上最小尺寸闸 —— 那是另一条断言)
+        while chainB.panes.count < 10 {
+            let before = chainB.panes.count
+            if let largest = chainB.panes.max(by: {
+                $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height
+            }) {
+                for _ in 0..<chainB.panes.count where chainB.focusedPane !== largest {
+                    chainB.focusNextPaneAction(nil)
+                }
+                if largest.bounds.width > largest.bounds.height {
+                    chainB.splitRightAction(nil)
+                } else {
+                    chainB.splitDownAction(nil)
+                }
+            }
+            pump(0.4)
+            if chainB.panes.count == before { break }   // 防死循环(闸拦下即止)
+        }
+        check("上限:分到 10 pane", chainB.panes.count == 10,
+              detail: "panes=\(chainB.panes.count)")
+        chainB.splitRightAction(nil)
+        pump(0.4)
+        check("上限:第 11 刀被拒", chainB.panes.count == 10,
+              detail: "panes=\(chainB.panes.count)")
+        paneRectsSane(chainB, name: "上限 10 屏")
+        // 扁平化的 N 子 split 节点走一遍快照(buildTree/权重链路天生支持 N 子,
+        // 但此前只有 2 子档案在跑 —— 钉住)
+        if let snap = chainB.snapshotState() {
+            func leaves10(_ n: SessionState.LayoutNode) -> Int {
+                switch n {
+                case .pane: return 1
+                case .split(_, _, let ch): return ch.map(leaves10).reduce(0, +)
+                }
+            }
+            check("上限:10 屏快照叶子数 10", leaves10(snap.layout) == 10,
+                  detail: "leaves=\(leaves10(snap.layout))")
+        } else {
+            check("上限:10 屏快照生成", false)
+        }
+
+        // ---- tab 中键关闭(2026-08-28 用户需求;盒绘条命中链路)----
+        chainB.newTab()
+        pump(0.8)
+        check("中键:新标签后 2 页", chainB.tabs.count == 2)
+        check("中键:盒绘条在场", chainB.crtTabBarVisibleForTesting,
+              detail: "rect=\(String(describing: chainB.crtTabBarRectForTesting))")
+        if let bar = chainB.crtTabBarRectForTesting {
+            chainB.middleClickTabBarForTesting(atX: bar.width * 0.75)   // 右半 = 第 2 页
+            pump(0.8)
+        }
+        check("中键:中键点第 2 格关回 1 页", chainB.tabs.count == 1,
+              detail: "tabs=\(chainB.tabs.count)")
+        chainB.window?.close()
+        pump(0.5)
+
         print(pass ? "WINDOW-PROBE-PASS" : "WINDOW-PROBE-FAIL")
         return pass ? 0 : 1
     }

@@ -5,6 +5,49 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [1.3.8] — 2026-08-28
+
+### Fixed
+
+- **Closing panes in sequence no longer blanks the terminal.** With four
+  panes (⌘D ×3), closing the last pane and then the first left the window
+  empty except for a clipped cursor at the bottom edge; one more ⌃D
+  "fixed" it. Root cause: modern NSSplitView manages arranged subviews via
+  Auto Layout and sets their `translatesAutoresizingMaskIntoConstraints`
+  to `false`. When a split view collapsed and its surviving *split view*
+  was re-parented as the tab's root, that flag was never restored — the
+  survivor participated in the constraint engine (it constrains its own
+  children) with no constraints of its own, so the next layout pass
+  resolved it to zero height and every pane inside went 0-sized
+  (collapsed absorption). Surviving *panes* don't touch constraints, which
+  is why the final ⌃D appeared to recover. The flag is now restored on
+  every re-root, and the whole surviving tree is re-seeded geometry
+  layer by layer (runtime version of the restore-time seeding).
+
+- **Holding ⌘D can no longer machine-gun splits.** Key-repeat events are
+  ignored for ⌘D/⇧⌘D (first press only), panes are capped at 10 per tab,
+  and a split that would leave either side under 80 pt is refused — the
+  runaway case built a deeply nested split tree that crashed inside
+  AppKit's constraint update cycle (see the desktop crash report).
+
+### Changed
+
+- **Same-direction splits now flatten** into one multi-pane NSSplitView
+  instead of nesting one level per cut. Dividers align across panes
+  (tmux-style) and tree depth no longer grows with repeated ⌘D — the
+  depth that fed the constraint-cycle crash.
+
+- **Focus follows the neighbor when a pane closes.** Previously focus
+  always jumped to the first pane of the tab; now it lands on the pane
+  that absorbed the closed pane's space.
+
+### Added
+
+- **Middle-click a tab to close it** — works on both the CRT box-drawing
+  tab strip and the liquid-glass tab bar.
+
+---
+
 ## [1.3.7] — 2026-08-27
 
 ### Fixed
